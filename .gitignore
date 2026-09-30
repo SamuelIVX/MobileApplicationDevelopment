@@ -1,0 +1,32 @@
+# Android / Kotlin .gitignore
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local properties (machine-specific SDK paths — never commit)
+local.properties
+
+# Android Studio IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services (contains API keys)
+google-services.json
+
+# Navigation editor temp files
+.navigation/
+
+# APK / AAB outputs
+*.apk
+*.aab
+
+# macOS
+.DS_Store
