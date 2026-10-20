@@ -9,9 +9,3 @@ HW1/PostCard/    ← HW1: PostCard app
 HW2/<project>/   ← future
 ...
 ```
-
-## Homeworks
-
-| # | Project | Description |
-|---|---------|-------------|
-| HW1 | PostCard | First Android app — postcard-style layout |
