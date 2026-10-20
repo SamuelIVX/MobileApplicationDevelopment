@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Slideshow</string>
+    <string name="next_picture">Next</string>
+    <string name="back_picture">Back</string>
+    <string name="go">Go</string>
+    <string name="enter_picture_number">Picture # (1-5)</string>
+
+
+    <string name="caption_1">Spider-Man swinging through the city</string>
+    <string name="caption_2">Spider-Man perched on a rooftop</string>
+    <string name="caption_3">Spider-Man in combat</string>
+    <string name="caption_4">Spider-Man facing the skyline</string>
+    <string name="caption_5">Spider-Man ready to fight</string>
+</resources>
