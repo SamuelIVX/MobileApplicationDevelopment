@@ -62,6 +62,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// ============================================================================
+// HW#3: Slideshow (Single image display with next / back / jump to picture #)
+// ============================================================================
 @Composable
 fun ImageWithButton(modifier: Modifier = Modifier) {
     var res by remember { mutableStateOf(1) }
@@ -155,6 +158,9 @@ fun ImageWithButton(modifier: Modifier = Modifier) {
         }
     }
 }
+// ============================================================================
+// HW#4: Scrollable List (10 Spider-Man images using LazyColumn and Card)
+// ============================================================================
 @Composable
 fun SpidermanCard(spidermen: Spidermen, modifier: Modifier = Modifier){
     Card(modifier = modifier){
