@@ -99,6 +99,7 @@ data class ProfileUiState(
     val myListings: List<Listing> = emptyList(),
     val isLoading: Boolean = true,
     val showDeleteDialogForId: String? = null,
+    val pendingMutationListingIds: Set<String> = emptySet(),
     val errorMessage: String? = null
 ) {
     val activeCount: Int get() = myListings.count { it.status == "active" }
@@ -117,7 +118,8 @@ class ProfileViewModel(
         loadProfile()
     }
 
-    private var activeMutationJob: kotlinx.coroutines.Job? = null
+    private val activeJobs = mutableListOf<kotlinx.coroutines.Job>()
+    private var isSigningOut = false
 
     private fun loadProfile() {
         viewModelScope.launch {
@@ -137,10 +139,21 @@ class ProfileViewModel(
     }
 
     fun toggleListingStatus(listing: Listing) {
+        if (isSigningOut || _uiState.value.pendingMutationListingIds.contains(listing.id)) return
         val newStatus = if (listing.status == "sold") "active" else "sold"
-        activeMutationJob = viewModelScope.launch {
-            listingRepository.updateListingStatus(listing.id, newStatus)
+        _uiState.update { it.copy(pendingMutationListingIds = it.pendingMutationListingIds + listing.id) }
+        val job = viewModelScope.launch {
+            try {
+                val result = listingRepository.updateListingStatus(listing.id, newStatus)
+                if (result.isFailure) {
+                    _uiState.update { it.copy(errorMessage = "Failed to update listing status") }
+                }
+            } finally {
+                _uiState.update { it.copy(pendingMutationListingIds = it.pendingMutationListingIds - listing.id) }
+            }
         }
+        activeJobs.add(job)
+        job.invokeOnCompletion { activeJobs.remove(job) }
     }
 
     fun requestDelete(listingId: String) {
@@ -153,15 +166,27 @@ class ProfileViewModel(
 
     fun confirmDelete() {
         val listingId = _uiState.value.showDeleteDialogForId ?: return
-        _uiState.update { it.copy(showDeleteDialogForId = null) }
-        activeMutationJob = viewModelScope.launch {
-            listingRepository.deleteListing(listingId)
+        if (isSigningOut || _uiState.value.pendingMutationListingIds.contains(listingId)) return
+        _uiState.update { it.copy(showDeleteDialogForId = null, pendingMutationListingIds = it.pendingMutationListingIds + listingId) }
+        val job = viewModelScope.launch {
+            try {
+                val result = listingRepository.deleteListing(listingId)
+                if (result.isFailure) {
+                    _uiState.update { it.copy(errorMessage = "Failed to delete listing. Please check connection.") }
+                }
+            } finally {
+                _uiState.update { it.copy(pendingMutationListingIds = it.pendingMutationListingIds - listingId) }
+            }
         }
+        activeJobs.add(job)
+        job.invokeOnCompletion { activeJobs.remove(job) }
     }
 
     fun signOut(onSignedOut: () -> Unit) {
+        if (isSigningOut) return
+        isSigningOut = true
         viewModelScope.launch {
-            activeMutationJob?.join()
+            activeJobs.toList().forEach { it.join() }
             authRepository.signOut()
             onSignedOut()
         }

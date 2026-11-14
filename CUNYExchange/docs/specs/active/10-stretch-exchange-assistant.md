@@ -96,6 +96,9 @@ object OfflineAssistantEngine {
     fun reply(query: String, listingContext: String?): String {
         val q = query.lowercase()
         return when {
+            q.contains("password") || q.contains("token") || q.contains("secret") || q.contains("credential") || q.contains("key") ->
+                "I do not handle passwords, tokens, or private credentials. Never share these in chat."
+
             q.contains("price") || q.contains("fair") || q.contains("worth") || q.contains("$") ->
                 if (listingContext != null) {
                     "Rule of thumb: used items in good shape sell for 40-60% of retail. For '$listingContext', compare it to a few similar listings to see if the price is fair."
@@ -111,9 +114,9 @@ object OfflineAssistantEngine {
 
             q.contains("list") || q.contains("write") || q.contains("draft") || q.contains("title") || q.contains("sell") ->
                 if (listingContext != null) {
-                    "Try: '$listingContext — works perfectly, light scuff on the base. Pickup between classes.' Lead with item & condition, add one honest flaw, then pickup."
+                    "Try: '$listingContext — [describe condition & any flaws]. Pickup on campus between classes.' Lead with item & condition, note any flaws honestly, then specify pickup."
                 } else {
-                    "Try: 'Adjustable LED Desk Lamp — works perfectly, light scuff on the base. $12, pickup on campus between classes.' Lead with item & condition, add one honest flaw, then price and pickup."
+                    "Try: '[Item Name] — [describe condition & any flaws]. $[Price], pickup on campus between classes.' Lead with item & condition, add one honest flaw, then price and pickup."
                 }
 
             q.contains("verif") || q.contains("login") || q.contains("link") || q.contains("email") ->

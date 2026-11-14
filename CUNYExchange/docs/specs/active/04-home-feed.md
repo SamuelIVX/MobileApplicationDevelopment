@@ -80,6 +80,24 @@ listings using horizontal category chips (`All`, `Textbooks`, `Calculators`, `El
 
 ## Design
 
+### `data/repository/ListingRepository.kt`
+```kotlin
+package com.cuny.exchange.data.repository
+
+import com.cuny.exchange.data.model.Category
+import com.cuny.exchange.data.model.Listing
+import kotlinx.coroutines.flow.Flow
+
+interface ListingRepository {
+    fun getListingsFlow(category: Category): Flow<List<Listing>>
+    fun getSavedListingIdsFlow(userId: String): Flow<Set<String>>
+    fun getListingById(listingId: String): Flow<Listing?>
+    fun isBookmarkedFlow(userId: String, listingId: String): Flow<Boolean>
+    suspend fun toggleBookmark(listingId: String): Result<Unit>
+    suspend fun updateListingStatus(listingId: String, status: String): Result<Unit>
+}
+```
+
 ### `ui/screens/home/HomeViewModel.kt`
 ```kotlin
 package com.cuny.exchange.ui.screens.home
@@ -139,6 +157,9 @@ class HomeViewModel(
                             )
                         }
                     }
+                }
+                .catch { e ->
+                    _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load feed") }
                 }
                 .collect { state -> _uiState.value = state }
         }

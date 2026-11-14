@@ -48,15 +48,17 @@ and runs cleanly from a fresh git clone without leaking private configuration ke
 3. THE SYSTEM SHALL verify that `./gradlew assembleDebug` generates an APK in `app/build/outputs/apk/debug/app-debug.apk`.
 4. THE SYSTEM SHALL confirm git status shows no tracked, staged, or historical private credentials:
    ```bash
-   git check-ignore app/google-services.json  # Exit code 0
-   git ls-files | grep -E "(keystore|jks|google-services\.json)" # Filename check: must return empty
-   git grep -i -E "(AIza[0-9A-Za-z-_]{35}|client_secret|private_key)" # Content check: must return empty
-   git log -p | grep -i -E "(AIza[0-9A-Za-z-_]{35}|client_secret|private_key)" # History check: must return empty
+   git check-ignore CUNYExchange/app/google-services.json  # Exit code 0
+   git ls-files | grep -E "(keystore|jks|google-services\.json)" # Tracked filename check: must return empty
+   git log --name-only --format= | grep -E "\.(jks|keystore)$" # Historical keystore check: must return empty
+   git grep -i -E "(AIza[-0-9A-Za-z_]{35}|client_secret|BEGIN (RSA |EC )?PRIVATE KEY)" -- ':!*.md' # Working tree check: must return empty
+   git grep --cached -i -E "(AIza[-0-9A-Za-z_]{35}|client_secret|BEGIN (RSA |EC )?PRIVATE KEY)" -- ':!*.md' # Staged index check: must return empty
+   git log -p -- ':!*.md' | grep -i -E "(AIza[-0-9A-Za-z_]{35}|client_secret|BEGIN (RSA |EC )?PRIVATE KEY)" # History check: must return empty
    ```
 
 ## Failure Modes & Edge Cases
 1. **Fresh Clone Missing `google-services.json`:** Setup documentation SHALL provide clear instructions on copying `google-services.json.example` and adding project credentials before building.
-2. **Classroom Wi-Fi Outage During Demo:** `DEMO-SCRIPT.md` SHALL include an offline fallback section explaining how Firestore local persistence enables browsing cached listings and offline assistant queries during presentation.
+2. **Classroom Wi-Fi Outage During Demo:** `DEMO-SCRIPT.md` SHALL include an offline fallback section explaining how Firestore local persistence enables browsing cached listings, and offline assistant queries if the stretch assistant is implemented.
 3. **Emulator Architecture Mismatch:** Documentation SHALL specify recommended Android Virtual Device (AVD) configurations (Pixel 8 / API 34, `arm64-v8a` for Apple Silicon, `x86_64` for Intel).
 
 ## Acceptance Criteria

@@ -33,8 +33,10 @@ appears immediately at the top.
 
 ## Invariants
 - A listing MUST contain between 0 and 5 photos maximum (`photoUris.size in 0..5`). [Oracle 3]
-- `price` MUST be a valid non-negative number (`price >= 0.0`), with at most 2 decimal places. [Oracle 2]
-- The "Publish" button MUST be disabled if `title.isBlank()` OR `price` is invalid or negative. [form validation invariant]
+- `price` MUST be a valid, finite non-negative number (`price.isFinite() && price >= 0.0`), with at most 2 decimal places. [Oracle 2]
+- The "Publish" button MUST be disabled if `title.isBlank()` OR `price` is invalid, infinite, or negative. [form validation invariant]
+- Storage upload MUST be atomic: if any photo upload fails during batch processing, `StorageRepository.uploadPhotos` MUST clean up any already-uploaded photos in that batch before rethrowing. [storage integrity]
+- Listing publication MUST populate required Firestore fields (`id`, `sellerId`, `sellerName`, `sellerEmail`, `sellerMajor`, `sellerRating`, `safeZone`) from the authenticated student profile and campus lookup before writing to `/listings`. [Firestore security rules compliance]
 - All photos MUST be compressed client-side to <= 1MB and 1200x1200px max dimensions prior to uploading. [Oracle 3 / storage quota protection]
 - The `sellerId` assigned to the listing MUST come directly from `FirebaseAuth.currentUser.uid` — never a client-supplied form field. [OWASP A01 / Oracle 4]
 - Tapping "Publish" MUST immediately disable the button to prevent duplicate submissions. [concurrency / idempotency invariant]
@@ -112,11 +114,12 @@ data class CreateListingUiState(
         val parts = trimmed.split(".")
         if (parts.size > 2) return null
         if (parts.size == 2 && parts[1].length > 2) return null
-        return trimmed.toDoubleOrNull()
+        return trimmed.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0.0 }
     }
     val isPublishEnabled: Boolean
         get() = title.trim().isNotEmpty() &&
                 parsedPrice != null &&
+                parsedPrice!!.isFinite() &&
                 parsedPrice!! >= 0.0 &&
                 campus.isNotEmpty() &&
                 photoUris.size <= 5

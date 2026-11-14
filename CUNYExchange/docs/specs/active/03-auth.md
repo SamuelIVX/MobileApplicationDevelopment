@@ -69,7 +69,7 @@ guaranteeing that unverified users or non-CUNY email addresses cannot access the
 - [ ] Successfully dispatching link navigates to `CheckEmailScreen` showing the destination email.
 - [ ] "Resend Link" is disabled for 60 seconds with live countdown indicator (`"Resend Link in 59s"`).
 - [ ] Mock deep link with valid credentials completes handshake and directs user to `HomeScreen`.
-- [ ] Launching app with an existing valid Firebase Auth session routes directly to `HomeScreen`.
+- [ ] Launching app with an existing valid Firebase Auth session checks for the existence of `/users/{uid}`: routes to `HomeScreen` if profile exists, or to `OnboardingScreen` (Profile Setup) if profile is missing.
 
 ## Design
 

@@ -71,7 +71,7 @@ the chat experience.
    - When viewing own listing (`sellerId == currentUser.uid`):
      - Primary button: "Mark as Sold" (or "Mark as Active" if already sold)
      - Secondary button: "Delete Listing" (styled with danger red outline `#D64045`).
-10. WHEN the student taps "Message Seller", THE SYSTEM SHALL atomically check for or create a single thread for the `(listingId, buyerId)` pair and navigate to `ChatScreen` with that thread's ID when stretch chat is enabled, OR launch a system `mailto:` intent pre-addressed to the seller's verified `.cuny.edu` email when in-app chat is disabled.
+10. WHEN the student taps "Message Seller", THE SYSTEM SHALL atomically check for or create a single thread for the `(listingId, buyerId)` pair and navigate to `ChatScreen` with that thread's ID when stretch chat is enabled, OR launch a system `mailto:` intent pre-addressed to the seller's verified `.cuny.edu` email (`listing.sellerEmail`) when in-app chat is disabled.
 
 ## Failure Modes & Edge Cases
 1. **Listing Not Found (Deleted):** WHEN `getListingById()` returns null or document does not exist, THE SYSTEM SHALL display an error state: "This listing is no longer available" with a button to return to Home.
@@ -129,7 +129,7 @@ class ListingDetailViewModel(
         viewModelScope.launch {
             authRepository.currentUserFlow.filterNotNull().flatMapLatest { user ->
                 combine(
-                    listingRepository.getListingByIdFlow(listingId),
+                    listingRepository.getListingById(listingId),
                     listingRepository.isBookmarkedFlow(user.id, listingId)
                 ) { listing, isSaved ->
                     if (listing == null) {
@@ -150,7 +150,6 @@ class ListingDetailViewModel(
     fun toggleSave() {
         viewModelScope.launch {
             listingRepository.toggleBookmark(listingId)
-            _uiState.update { it.copy(isSaved = !it.isSaved) }
         }
     }
 

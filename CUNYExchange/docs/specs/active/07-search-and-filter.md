@@ -91,7 +91,8 @@ data class SearchUiState(
     val selectedCategory: String = "All",
     val results: List<Listing> = emptyList(),
     val recentSearches: List<String> = emptyList(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
 ) {
     val isSearchActive: Boolean get() = query.isNotBlank() || selectedCampus != "All campuses" || under100Only || selectedCategory != "All"
     val resultsCountLabel: String get() {

@@ -72,6 +72,7 @@ and unread counts reflect dynamically on the bottom navigation bar.
     - Insert a new document into `threads/{threadId}/messages` with `senderId = currentUser.uid`, `text`, and server timestamp
     - Atomically update `threads/{threadId}` with `lastMessage = text`, `lastUpdated = now`, and add `counterpartId` to `unreadUserIds` using `arrayUnion`
     - Clear the draft input field.
+11. WHILE `ChatScreen` for a thread is actively open, WHEN a counterpart message arrives, THE SYSTEM SHALL remove `currentUser.uid` from `thread.unreadUserIds` so the unread indicator does not remain stuck.
 
 ## Failure Modes & Edge Cases
 1. **Offline Message Dispatch:** WHEN a student sends a message while offline, Firestore offline persistence SHALL queue the message and render a pending clock icon on the message bubble until synchronized.
@@ -132,7 +133,8 @@ class ChatViewModel(
                         _uiState.update {
                             it.copy(
                                 thread = thread,
-                                counterpartName = if (isBuyer) thread.sellerName else thread.buyerName
+                                counterpartName = if (isBuyer) thread.sellerName else thread.buyerName,
+                                counterpartCampus = if (isBuyer) thread.sellerCampus else thread.buyerCampus
                             )
                         }
                     }
@@ -162,7 +164,7 @@ class ChatViewModel(
                 chatRepository.sendMessage(threadId, text)
             } catch (e: Exception) {
                 _uiState.update { current ->
-                    val restoredDraft = if (current.draftText.isEmpty()) text else "$text ${current.draftText}"
+                    val restoredDraft = if (current.draftText.isEmpty()) text else "$text ${current.draftText}".take(1000)
                     current.copy(draftText = restoredDraft, errorMessage = "Failed to send message")
                 }
             } finally {

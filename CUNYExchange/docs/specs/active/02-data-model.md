@@ -52,6 +52,7 @@ that users can only modify their own listings and participate in authorized mess
 4. WHEN a thread is initiated at `/threads/{id}`, THE SYSTEM SHALL verify that `request.auth.uid == request.resource.data.buyerId`, the referenced `listingId` exists in `/listings`, and the `sellerId` matches the listing's owner.
 5. WHEN a message is written to `/threads/{threadId}/messages/{messageId}`, THE SYSTEM SHALL verify that `request.auth.uid == request.resource.data.senderId` AND the user is either the `buyerId` or `sellerId` of the parent thread.
 6. THE SYSTEM SHALL define static, read-only campus documents in `/campuses/{campusId}` containing predefined safe meetup zone instructions.
+7. **Query Constraint Invariant (Rules as Filters):** Because Firestore security rules do not filter collection results automatically, every client query on `/listings` (home feed, search, campus browse) MUST explicitly constrain its results by status (e.g., `.whereIn("status", listOf("active", "sold"))` or `.whereEqualTo("status", "active")`). Any unconstrained query on `/listings` will be rejected by Firestore with `PERMISSION_DENIED`.
 
 ## Failure Modes & Edge Cases
 1. **Unverified Email Session:** WHEN a user with an unverified email attempts read/write, Firestore rules SHALL reject the request with `PERMISSION_DENIED` (`request.auth.token.email_verified == true` required).
@@ -78,7 +79,7 @@ service cloud.firestore {
     // Helper: Validates active, verified CUNY student session
     function isCunyStudent() {
       return request.auth != null
-        && request.auth.token.email.matches('.*@([a-zA-Z0-9-]+\\.)*cuny\\.edu$')
+        && request.auth.token.email.matches('(?i).*@([a-z0-9-]+\\.)*cuny\\.edu$')
         && request.auth.token.email_verified == true;
     }
 
@@ -103,6 +104,7 @@ service cloud.firestore {
       allow create: if isCunyStudent()
         && request.resource.data.id == listingId
         && request.resource.data.sellerId == request.auth.uid
+        && request.resource.data.sellerEmail == request.auth.token.email
         && request.resource.data.price >= 0
         && request.resource.data.photoUrls.size() <= 5
         && request.resource.data.title is string
@@ -199,6 +201,7 @@ data class Listing(
     val id: String = "",
     val sellerId: String = "",
     val sellerName: String = "",
+    val sellerEmail: String = "",
     val sellerMajor: String = "",
     val sellerRating: Double = 5.0,
     val title: String = "",
@@ -234,6 +237,8 @@ data class Thread(
     val sellerId: String = "",
     val buyerName: String = "",
     val sellerName: String = "",
+    val buyerCampus: String = "",
+    val sellerCampus: String = "",
     val lastMessage: String = "",
     val lastUpdated: Timestamp = Timestamp.now(),
     val unreadUserIds: List<String> = emptyList()
