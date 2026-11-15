@@ -1,5 +1,6 @@
 package com.cuny.exchange.ui.navigation
 
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,12 +11,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.cuny.exchange.data.repository.AuthRepository
+import com.cuny.exchange.data.repository.ListingRepository
 import com.cuny.exchange.ui.screens.auth.AuthState
 import com.cuny.exchange.ui.screens.auth.AuthViewModel
 import com.cuny.exchange.ui.screens.auth.CheckEmailScreen
@@ -23,6 +28,9 @@ import com.cuny.exchange.ui.screens.auth.OnboardingScreen
 import com.cuny.exchange.ui.screens.auth.SignInScreen
 import com.cuny.exchange.ui.screens.create.CreateListingScreen
 import com.cuny.exchange.ui.screens.create.CreateListingViewModel
+import com.cuny.exchange.ui.screens.detail.ListingDetailScreen
+import com.cuny.exchange.ui.screens.detail.ListingDetailViewModel
+import com.cuny.exchange.ui.screens.detail.ListingDetailViewModelFactory
 import com.cuny.exchange.ui.screens.home.HomeScreen
 import com.cuny.exchange.ui.screens.home.HomeViewModel
 
@@ -47,6 +55,8 @@ fun AppNavGraph(
     authViewModel: AuthViewModel,
     homeViewModel: HomeViewModel,
     createListingViewModel: CreateListingViewModel,
+    listingRepository: ListingRepository,
+    authRepository: AuthRepository,
     modifier: Modifier = Modifier
 ) {
     val authState by authViewModel.authState.collectAsStateWithLifecycle()
@@ -147,15 +157,38 @@ fun AppNavGraph(
             arguments = listOf(navArgument("listingId") { type = NavType.StringType })
         ) { backStackEntry ->
             val listingId = backStackEntry.arguments?.getString("listingId").orEmpty()
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Listing Detail: $listingId",
-                    style = MaterialTheme.typography.titleLarge
+            val context = LocalContext.current
+            val detailViewModel: ListingDetailViewModel = viewModel(
+                key = "listing_detail_$listingId",
+                factory = ListingDetailViewModelFactory(
+                    listingId = listingId,
+                    listingRepository = listingRepository,
+                    authRepository = authRepository
                 )
-            }
+            )
+            ListingDetailScreen(
+                viewModel = detailViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onMessageSeller = { listing ->
+                    val intent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:${listing.sellerEmail}")
+                        putExtra(Intent.EXTRA_SUBJECT, "Inquiry about ${listing.title} on CUNYExchange")
+                        putExtra(
+                            Intent.EXTRA_TEXT,
+                            "Hi ${listing.sellerName},\n\nI am interested in your listing '${listing.title}' on CUNYExchange."
+                        )
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (_: Exception) {
+                        try {
+                            context.startActivity(Intent.createChooser(intent, "Send Email"))
+                        } catch (_: Exception) {}
+                    }
+                }
+            )
         }
 
         composable(Screen.CreateListing.route) {

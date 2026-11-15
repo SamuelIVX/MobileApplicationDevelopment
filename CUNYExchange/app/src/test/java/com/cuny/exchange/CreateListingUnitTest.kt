@@ -38,6 +38,7 @@ private class FakeCreateListingRepository : ListingRepository {
     override fun isBookmarkedFlow(userId: String, listingId: String): Flow<Boolean> = MutableStateFlow(false)
     override suspend fun toggleBookmark(listingId: String): Result<Unit> = Result.success(Unit)
     override suspend fun updateListingStatus(listingId: String, status: String): Result<Unit> = Result.success(Unit)
+    override suspend fun deleteListing(listingId: String): Result<Unit> = Result.success(Unit)
 
     override suspend fun createListing(
         listing: Listing,
