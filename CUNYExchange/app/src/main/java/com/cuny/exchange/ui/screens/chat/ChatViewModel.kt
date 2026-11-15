@@ -9,9 +9,11 @@ import com.cuny.exchange.data.repository.AuthRepository
 import com.cuny.exchange.data.repository.ChatRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -38,11 +40,12 @@ class ChatViewModel(
 
     private var isScreenVisible = false
     private var isMarkingRead = false
+    private var readCheckPending = false
 
     init {
         viewModelScope.launch {
             try {
-                authRepository.currentUserFlow.filterNotNull().collect { user ->
+                authRepository.currentUserFlow.filterNotNull().collectLatest { user ->
                     _uiState.update { it.copy(currentUserId = user.id) }
                     chatRepository.getThreadFlow(threadId).collect { thread ->
                         if (thread != null) {
@@ -70,31 +73,57 @@ class ChatViewModel(
         }
 
         viewModelScope.launch {
-            try {
-                chatRepository.getMessagesFlow(threadId).collect { msgs ->
-                    _uiState.update { it.copy(messages = msgs) }
-                    val current = _uiState.value
-                    val currentUserId = current.currentUserId
-                    if (isScreenVisible && currentUserId.isNotBlank() && current.thread?.unreadUserIds?.contains(currentUserId) == true) {
-                        markReadAsync(currentUserId)
+            var retryCount = 0
+            val maxRetries = 3
+            while (retryCount <= maxRetries) {
+                try {
+                    chatRepository.getMessagesFlow(threadId).collect { msgs ->
+                        retryCount = 0
+                        _uiState.update { it.copy(messages = msgs) }
+                        val current = _uiState.value
+                        val currentUserId = current.currentUserId
+                        if (isScreenVisible && currentUserId.isNotBlank() && current.thread?.unreadUserIds?.contains(currentUserId) == true) {
+                            markReadAsync(currentUserId)
+                        }
+                    }
+                    break
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    retryCount++
+                    _uiState.update { it.copy(errorMessage = e.localizedMessage ?: "Failed to stream messages") }
+                    if (retryCount <= maxRetries) {
+                        delay(1000L * retryCount)
                     }
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = e.localizedMessage ?: "Failed to stream messages") }
             }
         }
     }
 
     private fun markReadAsync(userId: String) {
-        if (isMarkingRead) return
+        if (isMarkingRead) {
+            readCheckPending = true
+            return
+        }
         isMarkingRead = true
         viewModelScope.launch {
             try {
-                chatRepository.markThreadRead(threadId, userId)
+                var attempts = 0
+                while (attempts < 2) {
+                    val result = chatRepository.markThreadRead(threadId, userId)
+                    if (result.isSuccess) break
+                    attempts++
+                    if (attempts < 2) delay(500L)
+                }
             } finally {
                 isMarkingRead = false
+                if (readCheckPending) {
+                    readCheckPending = false
+                    val current = _uiState.value
+                    if (isScreenVisible && current.thread?.unreadUserIds?.contains(userId) == true) {
+                        markReadAsync(userId)
+                    }
+                }
             }
         }
     }
@@ -126,15 +155,25 @@ class ChatViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true, draftText = "") }
             try {
-                val result = chatRepository.sendMessage(threadId, text)
+                val result = chatRepository.sendMessage(threadId, text) { error ->
+                    _uiState.update { current ->
+                        val restoredDraft = if (current.draftText.isBlank()) text else "$text ${current.draftText}".take(1000)
+                        current.copy(
+                            draftText = restoredDraft,
+                            errorMessage = "Message failed to send: ${error.localizedMessage ?: "Offline send rejected"}"
+                        )
+                    }
+                }
                 if (result.isFailure) {
                     _uiState.update { current ->
-                        current.copy(draftText = text, errorMessage = "Failed to send message. Please retry.")
+                        val restoredDraft = if (current.draftText.isBlank()) text else "$text ${current.draftText}".take(1000)
+                        current.copy(draftText = restoredDraft, errorMessage = "Failed to send message. Please retry.")
                     }
                 }
             } catch (e: Exception) {
                 _uiState.update { current ->
-                    current.copy(draftText = text, errorMessage = "Failed to send message: ${e.localizedMessage}")
+                    val restoredDraft = if (current.draftText.isBlank()) text else "$text ${current.draftText}".take(1000)
+                    current.copy(draftText = restoredDraft, errorMessage = "Failed to send message: ${e.localizedMessage}")
                 }
             } finally {
                 _uiState.update { it.copy(isSending = false) }

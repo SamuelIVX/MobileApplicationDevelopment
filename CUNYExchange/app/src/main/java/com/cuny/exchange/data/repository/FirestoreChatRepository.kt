@@ -120,7 +120,11 @@ class FirestoreChatRepository(
         awaitClose { listener.remove() }
     }
 
-    override suspend fun sendMessage(threadId: String, text: String): Result<Unit> = runCatching {
+    override suspend fun sendMessage(
+        threadId: String,
+        text: String,
+        onEventualFailure: (Throwable) -> Unit
+    ): Result<Unit> = runCatching {
         val currentUserId = auth.currentUser?.uid
             ?: throw IllegalStateException("User not authenticated")
 
@@ -166,12 +170,16 @@ class FirestoreChatRepository(
                 )
             )
         }
-        batchTask.addOnFailureListener { e ->
-            android.util.Log.w("FirestoreChatRepository", "Deferred message write failed", e)
-        }
         // Timeout is intentional: the write stays queued while offline.
-        withTimeoutOrNull(3000L) {
+        val finishedInTime = withTimeoutOrNull(3000L) {
             batchTask.await()
+            true
+        }
+        if (finishedInTime == null) {
+            batchTask.addOnFailureListener { e ->
+                android.util.Log.w("FirestoreChatRepository", "Deferred message write failed", e)
+                onEventualFailure(e)
+            }
         }
         Unit
     }
@@ -224,7 +232,10 @@ class FirestoreChatRepository(
             unreadUserIds = emptyList()
         )
 
-        threadRef.set(newThread).await()
+        // The write stays queued while offline. Do not block caller on server acknowledgement.
+        withTimeoutOrNull(3000L) {
+            threadRef.set(newThread).await()
+        }
         threadId
     }
 }

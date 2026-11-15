@@ -63,6 +63,7 @@ private class FakeChatRepository(
     var shouldFailSend: Boolean = false
     var shouldThrowOnThreads: Boolean = false
     var markedReadCalls = mutableListOf<Pair<String, String>>()
+    var lastOnEventualFailure: ((Throwable) -> Unit)? = null
 
     override fun getThreadsFlow(userId: String): Flow<List<Thread>> {
         if (shouldThrowOnThreads) {
@@ -84,7 +85,12 @@ private class FakeChatRepository(
         }
     }
 
-    override suspend fun sendMessage(threadId: String, text: String): Result<Unit> {
+    override suspend fun sendMessage(
+        threadId: String,
+        text: String,
+        onEventualFailure: (Throwable) -> Unit
+    ): Result<Unit> {
+        lastOnEventualFailure = onEventualFailure
         if (shouldFailSend) {
             return Result.failure(RuntimeException("Network error dispatching message"))
         }
@@ -427,5 +433,28 @@ class InboxChatUnitTest {
         // Should not retain buyer-1's threads
         assertTrue(viewModel.uiState.value.threads.isEmpty())
         assertEquals("buyer-2", viewModel.uiState.value.currentUserId)
+    }
+
+    @Test
+    fun eventual_send_rejection_restores_draft() = runTest(testDispatcher) {
+        val chatViewModel = ChatViewModel("thread-1", chatRepository, authRepository)
+        advanceUntilIdle()
+
+        chatViewModel.onDraftChanged("Queued offline message")
+        chatViewModel.sendMessage()
+        advanceUntilIdle()
+
+        // Optimistically cleared
+        assertEquals("", chatViewModel.uiState.value.draftText)
+        assertFalse(chatViewModel.uiState.value.isSending)
+
+        // Eventual failure reported
+        chatRepository.lastOnEventualFailure?.invoke(RuntimeException("Offline write rejected"))
+        advanceUntilIdle()
+
+        // Restores draft and sets error
+        assertEquals("Queued offline message", chatViewModel.uiState.value.draftText)
+        assertNotNull(chatViewModel.uiState.value.errorMessage)
+        assertTrue(chatViewModel.uiState.value.errorMessage!!.contains("Offline write rejected"))
     }
 }
