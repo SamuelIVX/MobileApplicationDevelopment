@@ -44,7 +44,7 @@ service cloud.firestore {
         && request.resource.data.displayName.trim().size() > 0
         && request.resource.data.displayName.size() <= 100
         && request.resource.data.campus is string
-        && exists(/databases/$(database)/documents/campuses/$(request.resource.data.campus))
+        && request.resource.data.campus.size() > 0
         && request.resource.data.major is string
         && request.resource.data.major.size() <= 100
         && request.resource.data.isVerified == true
@@ -79,8 +79,10 @@ service cloud.firestore {
         && request.resource.data.sellerName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
         && request.resource.data.sellerMajor == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.major
         && request.resource.data.sellerRating == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rating
-        && exists(/databases/$(database)/documents/campuses/$(request.resource.data.campus))
-        && request.resource.data.safeZone == get(/databases/$(database)/documents/campuses/$(request.resource.data.campus)).data.safeZone
+        && request.resource.data.campus is string
+        && request.resource.data.campus.size() > 0
+        && request.resource.data.safeZone is string
+        && request.resource.data.safeZone.size() > 0
         && request.resource.data.createdAt is timestamp;
       allow update: if isCunyStudent()
         && resource.data.sellerId == request.auth.uid
