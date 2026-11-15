@@ -86,6 +86,22 @@ private class FakeDetailListingRepository : ListingRepository {
         listingsMap[listingId]?.update { null }
         return Result.success(Unit)
     }
+
+    override suspend fun searchListings(
+        query: String,
+        campus: String,
+        under100: Boolean,
+        category: String
+    ): List<Listing> {
+        val trimmed = query.trim()
+        return listingsMap.values.mapNotNull { it.value }.filter { listing ->
+            val matchesQuery = trimmed.isBlank() || listing.title.contains(trimmed, ignoreCase = true)
+            val matchesCampus = campus == "All campuses" || listing.campus.equals(campus, ignoreCase = true)
+            val matchesPrice = !under100 || listing.price < 100.0
+            val matchesCategory = category == "All" || listing.category.equals(category, ignoreCase = true)
+            matchesQuery && matchesCampus && matchesPrice && matchesCategory
+        }
+    }
 }
 
 private class FakeDetailAuthRepository(

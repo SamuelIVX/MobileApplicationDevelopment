@@ -96,6 +96,13 @@ private class FakeHomeListingRepository : ListingRepository {
         listingsFlow.update { list -> list.filter { it.id != listingId } }
         return Result.success(Unit)
     }
+
+    override suspend fun searchListings(
+        query: String,
+        campus: String,
+        under100: Boolean,
+        category: String
+    ): List<Listing> = listingsFlow.value
 }
 
 private class FakeHomeAuthRepository(
