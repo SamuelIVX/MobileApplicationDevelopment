@@ -39,7 +39,7 @@ data class SignInUiState(
 
 data class CheckEmailUiState(
     val email: String = "",
-    val cooldownSeconds: Int = 60,
+    val cooldownSeconds: Int = 0,
     val isResending: Boolean = false,
     val errorMessage: String? = null
 )
@@ -76,6 +76,7 @@ class AuthViewModel(
     val onboardingUiState: StateFlow<OnboardingUiState> = _onboardingUiState.asStateFlow()
 
     private var cooldownJob: Job? = null
+    private var cooldownDeadlineMs: Long = 0L
     private var onboardingJob: Job? = null
     private var lastHandledDeepLink: String? = null
     private var queuedDeepLink: Pair<String, String?>? = null
@@ -134,6 +135,7 @@ class AuthViewModel(
                         )
                     }
                     _checkEmailUiState.update { it.copy(email = email) }
+                    cooldownDeadlineMs = System.currentTimeMillis() + 60_000L
                     startCooldownTimer(60)
                 },
                 onFailure = { error ->
@@ -164,6 +166,7 @@ class AuthViewModel(
             result.fold(
                 onSuccess = {
                     _checkEmailUiState.update { it.copy(isResending = false) }
+                    cooldownDeadlineMs = System.currentTimeMillis() + 60_000L
                     startCooldownTimer(60)
                 },
                 onFailure = { error ->
@@ -175,6 +178,30 @@ class AuthViewModel(
                     }
                 }
             )
+        }
+    }
+
+    fun restoreCheckEmail(email: String) {
+        val trimmed = email.trim()
+        if (!isCunyEmail(trimmed)) return
+
+        cooldownJob?.cancel()
+        val remainingSeconds = if (cooldownDeadlineMs > 0L) {
+            val diff = cooldownDeadlineMs - System.currentTimeMillis()
+            if (diff > 0L) ((diff + 999L) / 1000L).toInt() else 0
+        } else {
+            _checkEmailUiState.value.cooldownSeconds
+        }
+
+        _checkEmailUiState.update {
+            it.copy(
+                email = trimmed,
+                cooldownSeconds = remainingSeconds
+            )
+        }
+
+        if (remainingSeconds > 0) {
+            startCooldownTimer(remainingSeconds)
         }
     }
 
@@ -192,6 +219,11 @@ class AuthViewModel(
     }
 
     fun onDeepLinkReceived(link: String, cachedEmail: String?) {
+        val currentAuth = _authState.value
+        if (currentAuth is AuthState.Authenticated || currentAuth is AuthState.NeedsOnboarding) {
+            return
+        }
+
         if (_signInUiState.value.isVerifyingLink) {
             queuedDeepLink = Pair(link, cachedEmail)
             return

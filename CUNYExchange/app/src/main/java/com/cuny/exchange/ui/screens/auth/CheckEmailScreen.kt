@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cuny.exchange.data.repository.isCunyEmail
 import com.cuny.exchange.ui.theme.CunyBlue
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,6 +65,15 @@ fun CheckEmailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val displayEmail = checkEmailState.email.ifBlank { email }
+
+    LaunchedEffect(email, signInState.showCrossDeviceEmailPrompt) {
+        val trimmed = email.trim()
+        if (isCunyEmail(trimmed)) {
+            viewModel.restoreCheckEmail(trimmed)
+        } else if (!signInState.showCrossDeviceEmailPrompt) {
+            onNavigateBack()
+        }
+    }
 
     LaunchedEffect(checkEmailState.errorMessage, signInState.errorMessage) {
         val errorMsg = checkEmailState.errorMessage ?: signInState.errorMessage

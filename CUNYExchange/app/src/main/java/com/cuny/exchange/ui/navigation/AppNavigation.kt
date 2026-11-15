@@ -3,7 +3,6 @@ package com.cuny.exchange.ui.navigation
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +21,8 @@ import com.cuny.exchange.ui.screens.auth.AuthViewModel
 import com.cuny.exchange.ui.screens.auth.CheckEmailScreen
 import com.cuny.exchange.ui.screens.auth.OnboardingScreen
 import com.cuny.exchange.ui.screens.auth.SignInScreen
+import com.cuny.exchange.ui.screens.home.HomeScreen
+import com.cuny.exchange.ui.screens.home.HomeViewModel
 
 sealed class Screen(val route: String) {
     data object SignIn : Screen("auth/signin")
@@ -32,12 +33,16 @@ sealed class Screen(val route: String) {
         fun createRoute(uid: String): String = "auth/onboarding/$uid"
     }
     data object Home : Screen("home")
+    data object ListingDetail : Screen("listing/{listingId}") {
+        fun createRoute(listingId: String): String = "listing/$listingId"
+    }
 }
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
     authViewModel: AuthViewModel,
+    homeViewModel: HomeViewModel,
     modifier: Modifier = Modifier
 ) {
     val authState by authViewModel.authState.collectAsStateWithLifecycle()
@@ -46,7 +51,7 @@ fun AppNavGraph(
         val currentRoute = navController.currentDestination?.route
         when (val state = authState) {
             is AuthState.Authenticated -> {
-                if (currentRoute != Screen.Home.route) {
+                if (currentRoute != Screen.Home.route && currentRoute?.startsWith("listing/") != true) {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
@@ -119,12 +124,28 @@ fun AppNavGraph(
         }
 
         composable(Screen.Home.route) {
+            HomeScreen(
+                viewModel = homeViewModel,
+                onListingClick = { listingId ->
+                    navController.navigate(Screen.ListingDetail.createRoute(listingId))
+                },
+                onNavigateToSell = {
+                    // Placeholder for Tab 3 (Sell) in future specs
+                }
+            )
+        }
+
+        composable(
+            route = Screen.ListingDetail.route,
+            arguments = listOf(navArgument("listingId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val listingId = backStackEntry.arguments?.getString("listingId").orEmpty()
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Welcome to CUNYExchange Home Feed",
+                    text = "Listing Detail: $listingId",
                     style = MaterialTheme.typography.titleLarge
                 )
             }
