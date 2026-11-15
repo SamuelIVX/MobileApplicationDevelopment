@@ -9,6 +9,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.cuny.exchange.data.repository.AuthRepository
+import com.cuny.exchange.data.repository.ChatRepository
 import com.cuny.exchange.data.repository.ListingRepository
 import com.cuny.exchange.data.repository.PreferencesRepository
 import com.cuny.exchange.ui.screens.auth.AuthState
@@ -27,6 +32,12 @@ import com.cuny.exchange.ui.screens.auth.AuthViewModel
 import com.cuny.exchange.ui.screens.auth.CheckEmailScreen
 import com.cuny.exchange.ui.screens.auth.OnboardingScreen
 import com.cuny.exchange.ui.screens.auth.SignInScreen
+import com.cuny.exchange.ui.screens.chat.ChatScreen
+import com.cuny.exchange.ui.screens.chat.ChatViewModel
+import com.cuny.exchange.ui.screens.chat.ChatViewModelFactory
+import com.cuny.exchange.ui.screens.chat.InboxScreen
+import com.cuny.exchange.ui.screens.chat.InboxViewModel
+import com.cuny.exchange.ui.screens.chat.InboxViewModelFactory
 import com.cuny.exchange.ui.screens.create.CreateListingScreen
 import com.cuny.exchange.ui.screens.create.CreateListingViewModel
 import com.cuny.exchange.ui.screens.detail.ListingDetailScreen
@@ -40,6 +51,7 @@ import com.cuny.exchange.ui.screens.profile.ProfileViewModelFactory
 import com.cuny.exchange.ui.screens.search.SearchScreen
 import com.cuny.exchange.ui.screens.search.SearchViewModel
 import com.cuny.exchange.ui.screens.search.SearchViewModelFactory
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
     data object SignIn : Screen("auth/signin")
@@ -51,6 +63,10 @@ sealed class Screen(val route: String) {
     }
     data object Home : Screen("home")
     data object Search : Screen("search")
+    data object Inbox : Screen("inbox")
+    data object Chat : Screen("chat/{threadId}") {
+        fun createRoute(threadId: String): String = "chat/$threadId"
+    }
     data object Profile : Screen("profile")
     data object ListingDetail : Screen("listing/{listingId}") {
         fun createRoute(listingId: String): String = "listing/$listingId"
@@ -67,9 +83,11 @@ fun AppNavGraph(
     listingRepository: ListingRepository,
     authRepository: AuthRepository,
     preferencesRepository: PreferencesRepository,
+    chatRepository: ChatRepository,
     modifier: Modifier = Modifier
 ) {
     val authState by authViewModel.authState.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(authState) {
         val currentRoute = navController.currentDestination?.route
@@ -78,6 +96,8 @@ fun AppNavGraph(
                 if (currentRoute != Screen.Home.route &&
                     currentRoute != Screen.CreateListing.route &&
                     currentRoute != Screen.Search.route &&
+                    currentRoute != Screen.Inbox.route &&
+                    currentRoute?.startsWith("chat/") != true &&
                     currentRoute != Screen.Profile.route &&
                     currentRoute?.startsWith("listing/") != true
                 ) {
@@ -166,6 +186,41 @@ fun AppNavGraph(
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
+                },
+                onNavigateToInbox = {
+                    navController.navigate(Screen.Inbox.route)
+                }
+            )
+        }
+
+        composable(Screen.Inbox.route) {
+            val inboxViewModel: InboxViewModel = viewModel(
+                factory = InboxViewModelFactory(chatRepository, authRepository)
+            )
+            InboxScreen(
+                viewModel = inboxViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onThreadClick = { threadId ->
+                    navController.navigate(Screen.Chat.createRoute(threadId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.Chat.route,
+            arguments = listOf(navArgument("threadId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val threadId = backStackEntry.arguments?.getString("threadId").orEmpty()
+            val chatViewModel: ChatViewModel = viewModel(
+                key = "chat_$threadId",
+                factory = ChatViewModelFactory(threadId, chatRepository, authRepository)
+            )
+            ChatScreen(
+                viewModel = chatViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -230,26 +285,51 @@ fun AppNavGraph(
                     authRepository = authRepository
                 )
             )
+            var isMessagingSeller by remember { mutableStateOf(false) }
             ListingDetailScreen(
                 viewModel = detailViewModel,
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onMessageSeller = { listing ->
-                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:${listing.sellerEmail}")
-                        putExtra(Intent.EXTRA_SUBJECT, "Inquiry about ${listing.title} on CUNYExchange")
-                        putExtra(
-                            Intent.EXTRA_TEXT,
-                            "Hi ${listing.sellerName},\n\nI am interested in your listing '${listing.title}' on CUNYExchange."
-                        )
-                    }
-                    try {
-                        context.startActivity(intent)
-                    } catch (_: Exception) {
+                    if (isMessagingSeller) return@ListingDetailScreen
+                    val originEntryId = backStackEntry.id
+                    fun stillOnOrigin() = navController.currentBackStackEntry?.id == originEntryId
+
+                    isMessagingSeller = true
+                    coroutineScope.launch {
                         try {
-                            context.startActivity(Intent.createChooser(intent, "Send Email"))
-                        } catch (_: Exception) {}
+                            val currentUserId = authRepository.currentUserId
+                            val user = currentUserId?.let { authRepository.getUserProfile(it).getOrNull() }
+                            if (user != null) {
+                                val threadResult = chatRepository.getOrCreateThread(listing, user)
+                                val threadId = threadResult.getOrNull()
+                                if (threadId != null) {
+                                    if (stillOnOrigin()) {
+                                        navController.navigate(Screen.Chat.createRoute(threadId))
+                                    }
+                                    return@launch
+                                }
+                            }
+                            if (!stillOnOrigin()) return@launch
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:${listing.sellerEmail}")
+                                putExtra(Intent.EXTRA_SUBJECT, "Inquiry about ${listing.title} on CUNYExchange")
+                                putExtra(
+                                    Intent.EXTRA_TEXT,
+                                    "Hi ${listing.sellerName},\n\nI am interested in your listing '${listing.title}' on CUNYExchange."
+                                )
+                            }
+                            try {
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                try {
+                                    context.startActivity(Intent.createChooser(intent, "Send Email"))
+                                } catch (_: Exception) {}
+                            }
+                        } finally {
+                            isMessagingSeller = false
+                        }
                     }
                 }
             )
