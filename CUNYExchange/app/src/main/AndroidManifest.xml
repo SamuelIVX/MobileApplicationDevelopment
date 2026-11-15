@@ -34,6 +34,24 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
+                    android:host="cuny-exchange-4f43e.firebaseapp.com"
+                    android:pathPrefix="/__/auth/links" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="cuny-exchange-4f43e.web.app"
+                    android:pathPrefix="/__/auth/links" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
                     android:host="cuny-exchange-demo.firebaseapp.com"
                     android:pathPrefix="/__/auth/links" />
             </intent-filter>
