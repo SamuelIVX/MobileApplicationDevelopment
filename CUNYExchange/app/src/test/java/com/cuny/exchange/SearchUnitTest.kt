@@ -1,5 +1,6 @@
 package com.cuny.exchange
 
+import com.cuny.exchange.data.model.Campus
 import com.cuny.exchange.data.model.Category
 import com.cuny.exchange.data.model.Listing
 import com.cuny.exchange.data.repository.ListingRepository
@@ -63,6 +64,14 @@ private class FakeSearchListingRepository(
     override suspend fun updateListingStatus(listingId: String, status: String): Result<Unit> = Result.success(Unit)
     override suspend fun deleteListing(listingId: String): Result<Unit> = Result.success(Unit)
 
+    override fun getActiveCategoryCountsFlow(): Flow<Map<String, Int>> {
+        return listingsFlow.map { list ->
+            list.filter { it.status == "active" }
+                .groupingBy { it.category }
+                .eachCount()
+        }
+    }
+
     override suspend fun searchListings(
         query: String,
         campus: String,
@@ -78,7 +87,7 @@ private class FakeSearchListingRepository(
             val matchesQuery = if (tokens.isEmpty()) {
                 true
             } else {
-                tokens.any { token ->
+                tokens.all { token ->
                     listing.title.lowercase().contains(token) ||
                         listing.description.lowercase().contains(token) ||
                         listing.category.lowercase().contains(token)
@@ -86,9 +95,14 @@ private class FakeSearchListingRepository(
             }
             if (!matchesQuery) return@filter false
 
-            if (campus.isNotBlank() && !campus.equals("All campuses", ignoreCase = true)) {
-                if (!listing.campus.equals(campus, ignoreCase = true)) return@filter false
+            val matchesCampus = if (campus.equals("All campuses", ignoreCase = true) || campus.isBlank()) {
+                true
+            } else {
+                listing.campus.equals(campus, ignoreCase = true) ||
+                    Campus.findByName(campus)?.id.equals(listing.campus, ignoreCase = true) ||
+                    Campus.findById(campus)?.name.equals(listing.campus, ignoreCase = true)
             }
+            if (!matchesCampus) return@filter false
 
             if (under100 && listing.price >= 100.0) {
                 return@filter false
@@ -383,5 +397,63 @@ class SearchUnitTest {
             results = listOf(sampleListings[0], sampleListings[1])
         )
         assertEquals("2 results for \"book\" across CUNY", multipleResults.resultsCountLabel)
+    }
+
+    @Test
+    fun search_multi_word_query_requires_all_tokens() = runTest(testDispatcher) {
+        val viewModel = SearchViewModel(listingRepository, preferencesRepository)
+        advanceUntilIdle()
+
+        // "calculator desk" has no single listing matching both words
+        viewModel.onQueryChanged("calculator desk")
+        advanceTimeBy(300)
+        advanceUntilIdle()
+        assertEquals(0, viewModel.uiState.value.results.size)
+
+        // "graphing calculator" matches item-1
+        viewModel.onQueryChanged("graphing calculator")
+        advanceTimeBy(300)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.results.size)
+        assertEquals("item-1", viewModel.uiState.value.results[0].id)
+    }
+
+    @Test
+    fun search_filters_by_campus_id_or_name_equivalence() = runTest(testDispatcher) {
+        val viewModel = SearchViewModel(listingRepository, preferencesRepository)
+        advanceUntilIdle()
+
+        // Search by campus ID "baruch" which should match "Baruch College"
+        viewModel.onCampusSelected("baruch")
+        advanceUntilIdle()
+
+        val results = viewModel.uiState.value.results
+        assertEquals(3, results.size)
+        assertTrue(results.all { it.campus == "Baruch College" })
+    }
+
+    @Test
+    fun discovery_category_counts_include_only_active_listings() = runTest(testDispatcher) {
+        val viewModel = SearchViewModel(listingRepository, preferencesRepository)
+        advanceUntilIdle()
+
+        val counts = viewModel.uiState.value.categoryCounts
+        // item-1 (Electronics - active), item-5 (Electronics - active) -> 2
+        // item-6 is (Electronics - draft) -> must NOT be counted!
+        assertEquals(2, counts["Electronics"])
+        // item-2 (Textbooks - active) -> 1
+        assertEquals(1, counts["Textbooks"])
+        // item-3 (Furniture - active), item-4 (Furniture - active) -> 2
+        assertEquals(2, counts["Furniture"])
+    }
+
+    @Test
+    fun bookmark_failure_surfaces_error_in_search() = runTest(testDispatcher) {
+        val viewModel = SearchViewModel(listingRepository, preferencesRepository)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.errorMessage)
+        viewModel.setErrorMessage("Network error updating bookmark")
+        assertEquals("Network error updating bookmark", viewModel.uiState.value.errorMessage)
     }
 }

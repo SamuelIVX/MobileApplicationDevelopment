@@ -66,8 +66,7 @@ class SearchViewModel(
 
         viewModelScope.launch {
             try {
-                repository.getListingsFlow(Category.ALL).collect { allListings ->
-                    val counts = allListings.groupingBy { it.category }.eachCount()
+                repository.getActiveCategoryCountsFlow().collect { counts ->
                     _uiState.update { it.copy(categoryCounts = counts) }
                 }
             } catch (e: CancellationException) {
@@ -76,6 +75,10 @@ class SearchViewModel(
                 // Ignore listener or network errors for category counts
             }
         }
+    }
+
+    fun setErrorMessage(message: String) {
+        _uiState.update { it.copy(errorMessage = message) }
     }
 
     fun onQueryChanged(newQuery: String) {

@@ -78,6 +78,29 @@ class FirestoreListingRepository(
         awaitClose { listener.remove() }
     }
 
+    override fun getActiveCategoryCountsFlow(): Flow<Map<String, Int>> = callbackFlow {
+        val query = firestore.collection("listings")
+            .whereEqualTo("status", "active")
+
+        val listener = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+
+            val counts = mutableMapOf<String, Int>()
+            snapshot?.documents?.forEach { doc ->
+                val category = doc.getString("category")
+                if (!category.isNullOrBlank()) {
+                    counts[category] = (counts[category] ?: 0) + 1
+                }
+            }
+            trySend(counts)
+        }
+
+        awaitClose { listener.remove() }
+    }
+
     override fun getSavedListingIdsFlow(userId: String): Flow<Set<String>> {
         // Initialize cache for user if not loaded yet
         if (!savedListingIdsCache.value.containsKey(userId)) {

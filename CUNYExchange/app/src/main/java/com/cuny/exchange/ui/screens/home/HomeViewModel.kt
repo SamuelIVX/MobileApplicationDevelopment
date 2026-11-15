@@ -119,13 +119,15 @@ class HomeViewModel(
         _selectedCategory.value = category
     }
 
-    fun toggleSave(listingId: String) {
+    fun toggleSave(listingId: String, onError: ((String) -> Unit)? = null) {
         viewModelScope.launch {
             val result = listingRepository.toggleBookmark(listingId)
             result.onFailure { error ->
+                val message = error.localizedMessage ?: "Failed to update bookmark"
                 _uiState.update {
-                    it.copy(errorMessage = error.localizedMessage ?: "Failed to update bookmark")
+                    it.copy(errorMessage = message)
                 }
+                onError?.invoke(message)
             }
         }
     }

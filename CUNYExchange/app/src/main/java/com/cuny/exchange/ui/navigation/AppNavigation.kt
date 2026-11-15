@@ -177,7 +177,9 @@ fun AppNavGraph(
                 },
                 savedListingIds = homeUiState.savedListingIds,
                 onToggleSave = { listingId ->
-                    homeViewModel.toggleSave(listingId)
+                    homeViewModel.toggleSave(listingId) { errorMessage ->
+                        searchViewModel.setErrorMessage(errorMessage)
+                    }
                 }
             )
         }
