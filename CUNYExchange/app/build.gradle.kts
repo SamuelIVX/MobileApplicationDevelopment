@@ -38,6 +38,39 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     }
 }
 
+abstract class CheckGoogleServicesTask : DefaultTask() {
+    @get:Internal
+    abstract val targetFile: RegularFileProperty
+
+    @get:Internal
+    abstract val templateFile: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val target = targetFile.asFile.get()
+        if (!target.exists()) {
+            val template = templateFile.asFile.get()
+            throw GradleException(
+                """
+                |Missing required Firebase configuration file: '${target.path}'.
+                |To build CUNYExchange, copy the template configuration:
+                |  cp ${template.path} ${target.path}
+                |and update it with your Firebase project credentials.
+                """.trimMargin()
+            )
+        }
+    }
+}
+
+val checkGoogleServices = tasks.register<CheckGoogleServicesTask>("checkGoogleServices") {
+    targetFile.set(layout.projectDirectory.file("google-services.json"))
+    templateFile.set(layout.projectDirectory.file("../google-services.json.example"))
+}
+
+tasks.matching { it.name.startsWith("process") && it.name.endsWith("GoogleServices") }.configureEach {
+    dependsOn(checkGoogleServices)
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

@@ -26,3 +26,14 @@ val BorderDark = Color(0xFF2E3A59)
 
 val DangerRed = Color(0xFFD64045)
 val SuccessGreen = Color(0xFF2E7D32)
+
+// Semantic Error Tokens (WCAG 2.2 AA compliant contrast >= 4.5:1 on light/dark surfaces)
+val ErrorLight = Color(0xFFBA1A1A)
+val OnErrorLight = Color(0xFFFFFFFF)
+val ErrorContainerLight = Color(0xFFFFDAD6)
+val OnErrorContainerLight = Color(0xFF410002)
+
+val ErrorDark = Color(0xFFFFB4AB)
+val OnErrorDark = Color(0xFF690005)
+val ErrorContainerDark = Color(0xFF93000A)
+val OnErrorContainerDark = Color(0xFFFFDAD6)
