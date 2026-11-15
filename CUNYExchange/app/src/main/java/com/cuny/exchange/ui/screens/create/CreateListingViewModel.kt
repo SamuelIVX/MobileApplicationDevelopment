@@ -13,14 +13,17 @@ import com.cuny.exchange.data.repository.StorageRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class CreateListingUiState(
     val title: String = "",
@@ -58,6 +61,9 @@ class CreateListingViewModel(
 
     private val _uiState = MutableStateFlow(CreateListingUiState())
     val uiState: StateFlow<CreateListingUiState> = _uiState.asStateFlow()
+
+    private val _publishSuccessEvents = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
+    val publishSuccessEvents: SharedFlow<Unit> = _publishSuccessEvents.asSharedFlow()
 
     private var publishJob: Job? = null
 
@@ -126,7 +132,7 @@ class CreateListingViewModel(
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    fun publishListing(onSuccess: () -> Unit) {
+    fun publishListing(onSuccess: (() -> Unit)? = null) {
         val state = _uiState.value
         if (!state.isPublishEnabled || state.isLoading) return
 
@@ -161,20 +167,22 @@ class CreateListingViewModel(
                     status = "active"
                 )
 
-                hasListingWriteStarted = true
-                val result = listingRepository.createListing(newListing)
+                val result = listingRepository.createListing(
+                    listing = newListing,
+                    onWriteStarted = { hasListingWriteStarted = true }
+                )
                 result.getOrThrow()
                 isListingCommitted = true
                 _uiState.value = CreateListingUiState(campus = state.campus)
-            } catch (e: Exception) {
-                if (e is CancellationException) {
-                    if (uploadedUrls.isNotEmpty() && !hasListingWriteStarted) {
-                        withContext(NonCancellable) {
-                            runCatching { storageRepository.deletePhotos(uploadedUrls) }
-                        }
+                _publishSuccessEvents.tryEmit(Unit)
+            } catch (e: CancellationException) {
+                if (uploadedUrls.isNotEmpty() && !hasListingWriteStarted) {
+                    withContext(NonCancellable) {
+                        runCatching { storageRepository.deletePhotos(uploadedUrls) }
                     }
-                    throw e
                 }
+                throw e
+            } catch (e: Exception) {
                 if (uploadedUrls.isNotEmpty() && !isListingCommitted) {
                     withContext(NonCancellable) {
                         runCatching { storageRepository.deletePhotos(uploadedUrls) }
@@ -191,7 +199,7 @@ class CreateListingViewModel(
 
             // Invoked outside the persistence rollback block
             try {
-                onSuccess()
+                onSuccess?.invoke()
             } catch (_: Exception) {
                 // UI navigation failure does not invalidate committed listing
             }

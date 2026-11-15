@@ -12,6 +12,7 @@ import com.cuny.exchange.ui.screens.create.CreateListingUiState
 import com.cuny.exchange.ui.screens.create.CreateListingViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,10 +39,14 @@ private class FakeCreateListingRepository : ListingRepository {
     override suspend fun toggleBookmark(listingId: String): Result<Unit> = Result.success(Unit)
     override suspend fun updateListingStatus(listingId: String, status: String): Result<Unit> = Result.success(Unit)
 
-    override suspend fun createListing(listing: Listing): Result<String> {
+    override suspend fun createListing(
+        listing: Listing,
+        onWriteStarted: (() -> Unit)?
+    ): Result<String> {
         if (shouldFailCreate) {
             return Result.failure(RuntimeException("Firestore write error"))
         }
+        onWriteStarted?.invoke()
         createdListings.add(listing)
         return Result.success("new-listing-id")
     }
@@ -298,11 +303,20 @@ class CreateListingUnitTest {
         viewModel.onCategorySelected(Category.TEXTBOOKS.label)
         viewModel.onDescriptionChanged("Like new condition with minimal highlighting.")
 
+        var eventReceived = false
+        val job = backgroundScope.launch {
+            viewModel.publishSuccessEvents.collect {
+                eventReceived = true
+            }
+        }
+
         var navigationInvoked = false
         viewModel.publishListing(onSuccess = { navigationInvoked = true })
         testScheduler.runCurrent()
 
         assertTrue("onSuccess navigation callback must be called", navigationInvoked)
+        assertTrue("publishSuccessEvent must be emitted on success", eventReceived)
+        job.cancel()
         assertEquals(1, listingRepo.createdListings.size)
 
         val created = listingRepo.createdListings.first()

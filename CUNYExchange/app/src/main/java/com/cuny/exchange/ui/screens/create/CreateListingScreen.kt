@@ -3,6 +3,7 @@ package com.cuny.exchange.ui.screens.create
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -84,6 +85,12 @@ fun CreateListingScreen(
         if (error != null) {
             snackbarHostState.showSnackbar(error)
             viewModel.clearErrorMessage()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.publishSuccessEvents.collect {
+            onPublishSuccess()
         }
     }
 
@@ -180,9 +187,10 @@ fun CreateListingScreen(
                     text = "Condition *",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
                 )
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Condition.entries.forEach { condition ->
                         val isSelected = condition.label == uiState.condition
@@ -302,7 +310,7 @@ fun CreateListingScreen(
 
             // 8. Publish Button
             Button(
-                onClick = { viewModel.publishListing(onSuccess = onPublishSuccess) },
+                onClick = { viewModel.publishListing() },
                 enabled = uiState.isPublishEnabled && !uiState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()

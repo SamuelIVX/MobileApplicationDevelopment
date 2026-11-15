@@ -150,7 +150,10 @@ class FirestoreListingRepository(
         Unit
     }
 
-    override suspend fun createListing(listing: Listing): Result<String> = runCatching {
+    override suspend fun createListing(
+        listing: Listing,
+        onWriteStarted: (() -> Unit)?
+    ): Result<String> = runCatching {
         val currentUserId = auth.currentUser?.uid
             ?: throw IllegalStateException("User not authenticated")
         val currentUserEmail = auth.currentUser?.email
@@ -180,6 +183,7 @@ class FirestoreListingRepository(
             createdAt = Timestamp.now()
         )
 
+        onWriteStarted?.invoke()
         docRef.set(fullListing).await()
         listingId
     }

@@ -69,6 +69,16 @@ object ImageCompressor {
         } ?: return@withContext null
 
         // 5. Apply EXIF rotation if needed
+        val rotatedBitmap = applyOrientation(sampledBitmap, orientation)
+
+        // 6. Scale to exact max dimension if needed
+        val finalBitmap = scaleToMaxDimension(rotatedBitmap, maxDimension)
+
+        // 7. Compress to JPEG <= maxByteSize
+        compressToJpeg(finalBitmap, maxByteSize)
+    }
+
+    private fun applyOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
         val matrix = Matrix()
         when (orientation) {
             ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
@@ -86,54 +96,53 @@ object ImageCompressor {
             }
         }
 
-        val rotatedBitmap = if (!matrix.isIdentity) {
-            Bitmap.createBitmap(
-                sampledBitmap, 0, 0, sampledBitmap.width, sampledBitmap.height, matrix, true
-            ).also {
-                if (it != sampledBitmap) sampledBitmap.recycle()
+        return if (!matrix.isIdentity) {
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true).also {
+                if (it != bitmap) bitmap.recycle()
             }
         } else {
-            sampledBitmap
+            bitmap
         }
+    }
 
-        // 6. Scale to exact max dimension if needed
-        val currentWidth = rotatedBitmap.width
-        val currentHeight = rotatedBitmap.height
+    private fun scaleToMaxDimension(bitmap: Bitmap, maxDimension: Int): Bitmap {
+        val currentWidth = bitmap.width
+        val currentHeight = bitmap.height
         val maxCurrent = maxOf(currentWidth, currentHeight)
-        val finalBitmap = if (maxCurrent > maxDimension) {
+        return if (maxCurrent > maxDimension) {
             val scale = maxDimension.toFloat() / maxCurrent.toFloat()
             val targetW = (currentWidth * scale).toInt().coerceAtLeast(1)
             val targetH = (currentHeight * scale).toInt().coerceAtLeast(1)
-            Bitmap.createScaledBitmap(rotatedBitmap, targetW, targetH, true).also {
-                if (it != rotatedBitmap) rotatedBitmap.recycle()
+            Bitmap.createScaledBitmap(bitmap, targetW, targetH, true).also {
+                if (it != bitmap) bitmap.recycle()
             }
         } else {
-            rotatedBitmap
+            bitmap
         }
+    }
 
-        // 7. Compress to JPEG <= maxByteSize
+    private fun compressToJpeg(bitmap: Bitmap, maxByteSize: Int): ByteArray? {
         var quality = 80
         val outputStream = ByteArrayOutputStream()
-        var compressed = finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+        var compressed = bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
         if (!compressed) {
-            finalBitmap.recycle()
-            return@withContext null
+            bitmap.recycle()
+            return null
         }
 
         while (outputStream.size() > maxByteSize && quality > 30) {
             outputStream.reset()
             quality -= 15
-            compressed = finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            compressed = bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
             if (!compressed) {
-                finalBitmap.recycle()
-                return@withContext null
+                bitmap.recycle()
+                return null
             }
         }
 
-        finalBitmap.recycle()
+        bitmap.recycle()
 
-        // 8. Reject if output still exceeds maxByteSize
-        if (outputStream.size() <= maxByteSize) {
+        return if (outputStream.size() <= maxByteSize) {
             outputStream.toByteArray()
         } else {
             null
