@@ -215,6 +215,63 @@ class FirestoreListingRepository(
         listingId
     }
 
+    override suspend fun searchListings(
+        query: String,
+        campus: String,
+        under100: Boolean,
+        category: String
+    ): List<Listing> {
+        val snapshot = firestore.collection("listings")
+            .whereEqualTo("status", "active")
+            .get()
+            .await()
+
+        val allActive = snapshot.documents.mapNotNull { doc ->
+            try {
+                doc.toObject(Listing::class.java)?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        val trimmedQuery = query.trim()
+        val queryWords = if (trimmedQuery.isNotBlank()) trimmedQuery.split("\\s+".toRegex()) else emptyList()
+
+        return allActive.filter { listing ->
+            val matchesQuery = if (queryWords.isEmpty()) {
+                true
+            } else {
+                queryWords.all { word ->
+                    listing.title.contains(word, ignoreCase = true) ||
+                        listing.description.contains(word, ignoreCase = true) ||
+                        listing.category.contains(word, ignoreCase = true)
+                }
+            }
+
+            val matchesCampus = if (campus.equals("All campuses", ignoreCase = true) || campus.isBlank()) {
+                true
+            } else {
+                listing.campus.equals(campus, ignoreCase = true) ||
+                    Campus.findByName(campus)?.id.equals(listing.campus, ignoreCase = true) ||
+                    Campus.findById(campus)?.name.equals(listing.campus, ignoreCase = true)
+            }
+
+            val matchesPrice = if (under100) {
+                listing.price < 100.0
+            } else {
+                true
+            }
+
+            val matchesCategory = if (category.equals("All", ignoreCase = true) || category.isBlank()) {
+                true
+            } else {
+                listing.category.equals(category, ignoreCase = true)
+            }
+
+            matchesQuery && matchesCampus && matchesPrice && matchesCategory
+        }.sortedByDescending { it.createdAt.seconds }
+    }
+
     companion object {
         private const val PREFS_NAME = "cuny_saved_listings_prefs"
     }

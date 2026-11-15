@@ -16,4 +16,10 @@ interface ListingRepository {
         onWriteStarted: (() -> Unit)? = null
     ): Result<String>
     suspend fun deleteListing(listingId: String): Result<Unit>
+    suspend fun searchListings(
+        query: String = "",
+        campus: String = "All campuses",
+        under100: Boolean = false,
+        category: String = "All"
+    ): List<Listing>
 }

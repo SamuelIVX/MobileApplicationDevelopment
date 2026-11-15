@@ -39,6 +39,12 @@ private class FakeCreateListingRepository : ListingRepository {
     override suspend fun toggleBookmark(listingId: String): Result<Unit> = Result.success(Unit)
     override suspend fun updateListingStatus(listingId: String, status: String): Result<Unit> = Result.success(Unit)
     override suspend fun deleteListing(listingId: String): Result<Unit> = Result.success(Unit)
+    override suspend fun searchListings(
+        query: String,
+        campus: String,
+        under100: Boolean,
+        category: String
+    ): List<Listing> = emptyList()
 
     override suspend fun createListing(
         listing: Listing,

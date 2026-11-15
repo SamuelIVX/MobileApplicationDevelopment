@@ -21,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.cuny.exchange.data.repository.AuthRepository
 import com.cuny.exchange.data.repository.ListingRepository
+import com.cuny.exchange.data.repository.PreferencesRepository
 import com.cuny.exchange.ui.screens.auth.AuthState
 import com.cuny.exchange.ui.screens.auth.AuthViewModel
 import com.cuny.exchange.ui.screens.auth.CheckEmailScreen
@@ -33,6 +34,9 @@ import com.cuny.exchange.ui.screens.detail.ListingDetailViewModel
 import com.cuny.exchange.ui.screens.detail.ListingDetailViewModelFactory
 import com.cuny.exchange.ui.screens.home.HomeScreen
 import com.cuny.exchange.ui.screens.home.HomeViewModel
+import com.cuny.exchange.ui.screens.search.SearchScreen
+import com.cuny.exchange.ui.screens.search.SearchViewModel
+import com.cuny.exchange.ui.screens.search.SearchViewModelFactory
 
 sealed class Screen(val route: String) {
     data object SignIn : Screen("auth/signin")
@@ -43,6 +47,7 @@ sealed class Screen(val route: String) {
         fun createRoute(uid: String): String = "auth/onboarding/$uid"
     }
     data object Home : Screen("home")
+    data object Search : Screen("search")
     data object ListingDetail : Screen("listing/{listingId}") {
         fun createRoute(listingId: String): String = "listing/$listingId"
     }
@@ -57,6 +62,7 @@ fun AppNavGraph(
     createListingViewModel: CreateListingViewModel,
     listingRepository: ListingRepository,
     authRepository: AuthRepository,
+    preferencesRepository: PreferencesRepository,
     modifier: Modifier = Modifier
 ) {
     val authState by authViewModel.authState.collectAsStateWithLifecycle()
@@ -67,6 +73,7 @@ fun AppNavGraph(
             is AuthState.Authenticated -> {
                 if (currentRoute != Screen.Home.route &&
                     currentRoute != Screen.CreateListing.route &&
+                    currentRoute != Screen.Search.route &&
                     currentRoute?.startsWith("listing/") != true
                 ) {
                     navController.navigate(Screen.Home.route) {
@@ -148,6 +155,29 @@ fun AppNavGraph(
                 },
                 onNavigateToSell = {
                     navController.navigate(Screen.CreateListing.route)
+                },
+                onNavigateToSearch = {
+                    navController.navigate(Screen.Search.route)
+                }
+            )
+        }
+
+        composable(Screen.Search.route) {
+            val searchViewModel: SearchViewModel = viewModel(
+                factory = SearchViewModelFactory(listingRepository, preferencesRepository)
+            )
+            val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+            SearchScreen(
+                viewModel = searchViewModel,
+                onListingClick = { listingId ->
+                    navController.navigate(Screen.ListingDetail.createRoute(listingId))
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                savedListingIds = homeUiState.savedListingIds,
+                onToggleSave = { listingId ->
+                    homeViewModel.toggleSave(listingId)
                 }
             )
         }
