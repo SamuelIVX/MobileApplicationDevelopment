@@ -1,6 +1,7 @@
 package com.cuny.exchange.data.model
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.Exclude
 
 data class Listing(
     val id: String = "",
@@ -20,5 +21,6 @@ data class Listing(
     val status: String = "active", // "active", "sold", or "deletion-pending"
     val createdAt: Timestamp = Timestamp.now()
 ) {
+    @get:Exclude
     val isAvailable: Boolean get() = status == "active"
 }

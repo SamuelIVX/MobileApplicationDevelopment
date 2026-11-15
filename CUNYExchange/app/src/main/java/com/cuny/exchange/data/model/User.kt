@@ -1,6 +1,7 @@
 package com.cuny.exchange.data.model
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.PropertyName
 
 data class User(
     val id: String = "",
@@ -9,6 +10,8 @@ data class User(
     val major: String = "",
     val rating: Double = 5.0,
     val soldCount: Int = 0,
-    val isVerified: Boolean = false,
+    @get:PropertyName("isVerified")
+    @set:PropertyName("isVerified")
+    var isVerified: Boolean = false,
     val createdAt: Timestamp = Timestamp.now()
 )

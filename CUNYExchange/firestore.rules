@@ -9,19 +9,53 @@ service cloud.firestore {
         && request.auth.token.email_verified == true;
     }
 
+    // Helper: Validates photoUrls list structure (max 5 string elements)
+    function isValidPhotoUrls(urls) {
+      return urls is list
+        && urls.size() <= 5
+        && (urls.size() < 1 || urls[0] is string)
+        && (urls.size() < 2 || urls[1] is string)
+        && (urls.size() < 3 || urls[2] is string)
+        && (urls.size() < 4 || urls[3] is string)
+        && (urls.size() < 5 || urls[4] is string);
+    }
+
+    // Helper: Validates unreadUserIds contains only valid participant IDs and bounded size
+    function isValidUnreadUserIds(unreadList, buyerId, sellerId) {
+      return unreadList is list
+        && unreadList.size() <= 2
+        && unreadList.hasOnly([buyerId, sellerId]);
+    }
+
+    // Helper: Safe thread retrieval supporting both existing threads and atomic batched thread creation
+    function getThread(threadId) {
+      return exists(/databases/$(database)/documents/threads/$(threadId))
+        ? get(/databases/$(database)/documents/threads/$(threadId))
+        : getAfter(/databases/$(database)/documents/threads/$(threadId));
+    }
+
     // Users Collection
     match /users/{userId} {
       allow read: if isCunyStudent();
       allow create: if isCunyStudent() && request.auth.uid == userId
         && request.resource.data.keys().hasAll(['id', 'displayName', 'campus', 'major', 'rating', 'soldCount', 'isVerified', 'createdAt'])
-        && exists(/databases/$(database)/documents/campuses/$(request.resource.data.campus))
         && request.resource.data.id == request.auth.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.trim().size() > 0
+        && request.resource.data.displayName.size() <= 100
+        && request.resource.data.campus is string
+        && exists(/databases/$(database)/documents/campuses/$(request.resource.data.campus))
+        && request.resource.data.major is string
+        && request.resource.data.major.size() <= 100
         && request.resource.data.isVerified == true
         && request.resource.data.rating == 5.0
-        && request.resource.data.soldCount == 0;
+        && request.resource.data.soldCount == 0
+        && request.resource.data.createdAt is timestamp;
       allow update: if isCunyStudent() && request.auth.uid == userId
+        && request.resource.data.major is string
+        && request.resource.data.major.size() <= 100
         && !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['isVerified', 'rating', 'soldCount', 'id', 'campus', 'displayName']);
+            .hasAny(['isVerified', 'rating', 'soldCount', 'id', 'campus', 'displayName', 'createdAt']);
     }
 
     // Listings Collection
@@ -31,8 +65,9 @@ service cloud.firestore {
         && request.resource.data.id == listingId
         && request.resource.data.sellerId == request.auth.uid
         && request.resource.data.sellerEmail == request.auth.token.email
+        && request.resource.data.price is number
         && request.resource.data.price >= 0
-        && request.resource.data.photoUrls.size() <= 5
+        && isValidPhotoUrls(request.resource.data.photoUrls)
         && request.resource.data.title is string
         && request.resource.data.title.trim().size() > 0
         && request.resource.data.title.size() <= 100
@@ -45,12 +80,14 @@ service cloud.firestore {
         && request.resource.data.sellerMajor == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.major
         && request.resource.data.sellerRating == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rating
         && exists(/databases/$(database)/documents/campuses/$(request.resource.data.campus))
-        && request.resource.data.safeZone == get(/databases/$(database)/documents/campuses/$(request.resource.data.campus)).data.safeZone;
+        && request.resource.data.safeZone == get(/databases/$(database)/documents/campuses/$(request.resource.data.campus)).data.safeZone
+        && request.resource.data.createdAt is timestamp;
       allow update: if isCunyStudent()
         && resource.data.sellerId == request.auth.uid
         && request.resource.data.sellerId == resource.data.sellerId
+        && request.resource.data.price is number
         && request.resource.data.price >= 0
-        && request.resource.data.photoUrls.size() <= 5
+        && isValidPhotoUrls(request.resource.data.photoUrls)
         && request.resource.data.title is string
         && request.resource.data.title.trim().size() > 0
         && request.resource.data.title.size() <= 100
@@ -59,7 +96,8 @@ service cloud.firestore {
         && request.resource.data.status in ['active', 'sold', 'deletion-pending']
         && request.resource.data.condition in ['New', 'Like New', 'Good', 'Fair']
         && request.resource.data.category in ['Textbooks', 'Calculators', 'Electronics', 'Clothing', 'Furniture', 'Other']
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'sellerName', 'sellerMajor', 'sellerRating', 'campus', 'safeZone', 'createdAt']);
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['id', 'sellerId', 'sellerEmail', 'sellerName', 'sellerMajor', 'sellerRating', 'campus', 'safeZone', 'createdAt']);
       allow delete: if isCunyStudent()
         && resource.data.sellerId == request.auth.uid;
     }
@@ -69,25 +107,45 @@ service cloud.firestore {
       allow read: if isCunyStudent()
         && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId);
       allow create: if isCunyStudent()
+        && request.resource.data.id == threadId
         && request.auth.uid == request.resource.data.buyerId
         && exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId))
-        && request.resource.data.sellerId == get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data.sellerId;
+        && request.resource.data.sellerId == get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data.sellerId
+        && request.resource.data.listingTitle == get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data.title
+        && request.resource.data.buyerName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
+        && request.resource.data.buyerCampus == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.campus
+        && request.resource.data.sellerName == get(/databases/$(database)/documents/users/$(request.resource.data.sellerId)).data.displayName
+        && request.resource.data.sellerCampus == get(/databases/$(database)/documents/users/$(request.resource.data.sellerId)).data.campus
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() <= 1000
+        && request.resource.data.lastUpdated is timestamp
+        && isValidUnreadUserIds(request.resource.data.unreadUserIds, request.resource.data.buyerId, request.resource.data.sellerId);
       allow update: if isCunyStudent()
         && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId)
+        && request.resource.data.listingId == resource.data.listingId
         && request.resource.data.buyerId == resource.data.buyerId
-        && request.resource.data.sellerId == resource.data.sellerId;
+        && request.resource.data.sellerId == resource.data.sellerId
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() <= 1000
+        && request.resource.data.lastUpdated is timestamp
+        && isValidUnreadUserIds(request.resource.data.unreadUserIds, resource.data.buyerId, resource.data.sellerId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['id', 'listingId', 'buyerId', 'sellerId', 'buyerCampus', 'sellerCampus', 'buyerName', 'sellerName', 'listingTitle']);
 
       match /messages/{messageId} {
         allow read: if isCunyStudent()
-          && (request.auth.uid == get(/databases/$(database)/documents/threads/$(threadId)).data.buyerId
-           || request.auth.uid == get(/databases/$(database)/documents/threads/$(threadId)).data.sellerId);
+          && (request.auth.uid == getThread(threadId).data.buyerId
+           || request.auth.uid == getThread(threadId).data.sellerId);
         allow create: if isCunyStudent()
-          && (request.auth.uid == get(/databases/$(database)/documents/threads/$(threadId)).data.buyerId
-           || request.auth.uid == get(/databases/$(database)/documents/threads/$(threadId)).data.sellerId)
+          && request.resource.data.id == messageId
+          && (request.auth.uid == getThread(threadId).data.buyerId
+           || request.auth.uid == getThread(threadId).data.sellerId)
           && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
           && request.resource.data.text is string
           && request.resource.data.text.trim().size() > 0
-          && request.resource.data.text.size() <= 1000;
+          && request.resource.data.text.size() <= 1000
+          && request.resource.data.createdAt is timestamp;
       }
     }
 
