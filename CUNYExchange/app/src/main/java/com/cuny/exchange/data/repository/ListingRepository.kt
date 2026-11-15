@@ -16,6 +16,7 @@ interface ListingRepository {
         onWriteStarted: (() -> Unit)? = null
     ): Result<String>
     suspend fun deleteListing(listingId: String): Result<Unit>
+    fun getMyListingsFlow(userId: String): Flow<List<Listing>> = kotlinx.coroutines.flow.flowOf(emptyList())
     fun getActiveCategoryCountsFlow(): Flow<Map<String, Int>> = kotlinx.coroutines.flow.flowOf(emptyMap())
     suspend fun searchListings(
         query: String = "",

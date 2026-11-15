@@ -101,6 +101,30 @@ class FirestoreListingRepository(
         awaitClose { listener.remove() }
     }
 
+    override fun getMyListingsFlow(userId: String): Flow<List<Listing>> = callbackFlow {
+        val query = firestore.collection("listings")
+            .whereEqualTo("sellerId", userId)
+
+        val listener = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+
+            val listings = snapshot?.documents?.mapNotNull { doc ->
+                try {
+                    doc.toObject(Listing::class.java)?.copy(id = doc.id)
+                } catch (e: Exception) {
+                    null
+                }
+            }?.sortedByDescending { it.createdAt.seconds } ?: emptyList()
+
+            trySend(listings)
+        }
+
+        awaitClose { listener.remove() }
+    }
+
     override fun getSavedListingIdsFlow(userId: String): Flow<Set<String>> {
         // Initialize cache for user if not loaded yet
         if (!savedListingIdsCache.value.containsKey(userId)) {

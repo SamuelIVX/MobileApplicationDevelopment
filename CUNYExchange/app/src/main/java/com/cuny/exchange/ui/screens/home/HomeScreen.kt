@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.Button
@@ -56,6 +57,7 @@ fun HomeScreen(
     onListingClick: (String) -> Unit,
     onNavigateToSell: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -91,6 +93,18 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Outlined.Search,
                             contentDescription = "Search listings",
+                            tint = cunyBlue
+                        )
+                    }
+                    IconButton(
+                        onClick = onNavigateToProfile,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .semantics { contentDescription = "Profile button" }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Person,
+                            contentDescription = "Profile",
                             tint = cunyBlue
                         )
                     }

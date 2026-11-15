@@ -34,6 +34,9 @@ import com.cuny.exchange.ui.screens.detail.ListingDetailViewModel
 import com.cuny.exchange.ui.screens.detail.ListingDetailViewModelFactory
 import com.cuny.exchange.ui.screens.home.HomeScreen
 import com.cuny.exchange.ui.screens.home.HomeViewModel
+import com.cuny.exchange.ui.screens.profile.ProfileScreen
+import com.cuny.exchange.ui.screens.profile.ProfileViewModel
+import com.cuny.exchange.ui.screens.profile.ProfileViewModelFactory
 import com.cuny.exchange.ui.screens.search.SearchScreen
 import com.cuny.exchange.ui.screens.search.SearchViewModel
 import com.cuny.exchange.ui.screens.search.SearchViewModelFactory
@@ -48,6 +51,7 @@ sealed class Screen(val route: String) {
     }
     data object Home : Screen("home")
     data object Search : Screen("search")
+    data object Profile : Screen("profile")
     data object ListingDetail : Screen("listing/{listingId}") {
         fun createRoute(listingId: String): String = "listing/$listingId"
     }
@@ -74,6 +78,7 @@ fun AppNavGraph(
                 if (currentRoute != Screen.Home.route &&
                     currentRoute != Screen.CreateListing.route &&
                     currentRoute != Screen.Search.route &&
+                    currentRoute != Screen.Profile.route &&
                     currentRoute?.startsWith("listing/") != true
                 ) {
                     navController.navigate(Screen.Home.route) {
@@ -158,6 +163,33 @@ fun AppNavGraph(
                 },
                 onNavigateToSearch = {
                     navController.navigate(Screen.Search.route)
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
+                }
+            )
+        }
+
+        composable(Screen.Profile.route) {
+            val profileViewModel: ProfileViewModel = viewModel(
+                factory = ProfileViewModelFactory(authRepository, listingRepository)
+            )
+            ProfileScreen(
+                viewModel = profileViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToSell = {
+                    navController.navigate(Screen.CreateListing.route)
+                },
+                onListingClick = { listingId ->
+                    navController.navigate(Screen.ListingDetail.createRoute(listingId))
+                },
+                onSignedOut = {
+                    navController.navigate(Screen.SignIn.route) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
