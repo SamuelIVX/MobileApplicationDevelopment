@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
@@ -58,6 +59,7 @@ fun HomeScreen(
     onNavigateToSell: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onNavigateToInbox: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -93,6 +95,18 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Outlined.Search,
                             contentDescription = "Search listings",
+                            tint = cunyBlue
+                        )
+                    }
+                    IconButton(
+                        onClick = onNavigateToInbox,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .semantics { contentDescription = "Messages and inbox button" }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Inbox",
                             tint = cunyBlue
                         )
                     }

@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.rememberNavController
 import com.cuny.exchange.data.repository.FirebaseAuthRepository
 import com.cuny.exchange.data.repository.FirebaseStorageRepository
+import com.cuny.exchange.data.repository.FirestoreChatRepository
 import com.cuny.exchange.data.repository.FirestoreListingRepository
 import com.cuny.exchange.data.repository.SharedPreferencesPreferencesRepository
 import com.cuny.exchange.data.repository.StorageRepository
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var listingRepository: FirestoreListingRepository
     private lateinit var storageRepository: StorageRepository
     private lateinit var preferencesRepository: SharedPreferencesPreferencesRepository
+    private lateinit var chatRepository: FirestoreChatRepository
     private var lastHandledIntentUri: String? = null
 
     private val authViewModel: AuthViewModel by viewModels {
@@ -59,6 +61,7 @@ class MainActivity : ComponentActivity() {
         listingRepository = FirestoreListingRepository(applicationContext)
         storageRepository = FirebaseStorageRepository(applicationContext)
         preferencesRepository = SharedPreferencesPreferencesRepository(applicationContext)
+        chatRepository = FirestoreChatRepository(applicationContext)
 
         val initialIntent = if (savedInstanceState == null) intent else null
 
@@ -79,6 +82,7 @@ class MainActivity : ComponentActivity() {
                         listingRepository = listingRepository,
                         authRepository = authRepository,
                         preferencesRepository = preferencesRepository,
+                        chatRepository = chatRepository,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
