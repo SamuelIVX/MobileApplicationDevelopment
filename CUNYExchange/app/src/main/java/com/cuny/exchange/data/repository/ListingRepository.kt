@@ -11,4 +11,5 @@ interface ListingRepository {
     fun isBookmarkedFlow(userId: String, listingId: String): Flow<Boolean>
     suspend fun toggleBookmark(listingId: String): Result<Unit>
     suspend fun updateListingStatus(listingId: String, status: String): Result<Unit>
+    suspend fun createListing(listing: Listing): Result<String>
 }

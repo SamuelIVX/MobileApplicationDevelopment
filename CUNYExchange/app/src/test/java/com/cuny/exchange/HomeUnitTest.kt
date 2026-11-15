@@ -83,6 +83,8 @@ private class FakeHomeListingRepository : ListingRepository {
         }
         return Result.success(Unit)
     }
+
+    override suspend fun createListing(listing: Listing): Result<String> = Result.success("fake-id")
 }
 
 private class FakeHomeAuthRepository(

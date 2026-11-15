@@ -14,9 +14,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.rememberNavController
 import com.cuny.exchange.data.repository.FirebaseAuthRepository
+import com.cuny.exchange.data.repository.FirebaseStorageRepository
 import com.cuny.exchange.data.repository.FirestoreListingRepository
+import com.cuny.exchange.data.repository.StorageRepository
 import com.cuny.exchange.ui.navigation.AppNavGraph
 import com.cuny.exchange.ui.screens.auth.AuthViewModel
+import com.cuny.exchange.ui.screens.create.CreateListingViewModel
+import com.cuny.exchange.ui.screens.create.CreateListingViewModelFactory
 import com.cuny.exchange.ui.screens.home.HomeViewModel
 import com.cuny.exchange.ui.screens.home.HomeViewModelFactory
 import com.cuny.exchange.ui.theme.CUNYExchangeTheme
@@ -25,6 +29,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var authRepository: FirebaseAuthRepository
     private lateinit var listingRepository: FirestoreListingRepository
+    private lateinit var storageRepository: StorageRepository
     private var lastHandledIntentUri: String? = null
 
     private val authViewModel: AuthViewModel by viewModels {
@@ -40,12 +45,17 @@ class MainActivity : ComponentActivity() {
         HomeViewModelFactory(listingRepository, authRepository)
     }
 
+    private val createListingViewModel: CreateListingViewModel by viewModels {
+        CreateListingViewModelFactory(listingRepository, storageRepository, authRepository)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         authRepository = FirebaseAuthRepository(applicationContext)
         listingRepository = FirestoreListingRepository(applicationContext)
+        storageRepository = FirebaseStorageRepository(applicationContext)
 
         val initialIntent = if (savedInstanceState == null) intent else null
 
@@ -62,6 +72,7 @@ class MainActivity : ComponentActivity() {
                         navController = navController,
                         authViewModel = authViewModel,
                         homeViewModel = homeViewModel,
+                        createListingViewModel = createListingViewModel,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

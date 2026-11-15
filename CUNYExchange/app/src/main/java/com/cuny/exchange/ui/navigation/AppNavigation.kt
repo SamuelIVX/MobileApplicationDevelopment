@@ -21,6 +21,8 @@ import com.cuny.exchange.ui.screens.auth.AuthViewModel
 import com.cuny.exchange.ui.screens.auth.CheckEmailScreen
 import com.cuny.exchange.ui.screens.auth.OnboardingScreen
 import com.cuny.exchange.ui.screens.auth.SignInScreen
+import com.cuny.exchange.ui.screens.create.CreateListingScreen
+import com.cuny.exchange.ui.screens.create.CreateListingViewModel
 import com.cuny.exchange.ui.screens.home.HomeScreen
 import com.cuny.exchange.ui.screens.home.HomeViewModel
 
@@ -36,6 +38,7 @@ sealed class Screen(val route: String) {
     data object ListingDetail : Screen("listing/{listingId}") {
         fun createRoute(listingId: String): String = "listing/$listingId"
     }
+    data object CreateListing : Screen("create_listing")
 }
 
 @Composable
@@ -43,6 +46,7 @@ fun AppNavGraph(
     navController: NavHostController,
     authViewModel: AuthViewModel,
     homeViewModel: HomeViewModel,
+    createListingViewModel: CreateListingViewModel,
     modifier: Modifier = Modifier
 ) {
     val authState by authViewModel.authState.collectAsStateWithLifecycle()
@@ -51,7 +55,10 @@ fun AppNavGraph(
         val currentRoute = navController.currentDestination?.route
         when (val state = authState) {
             is AuthState.Authenticated -> {
-                if (currentRoute != Screen.Home.route && currentRoute?.startsWith("listing/") != true) {
+                if (currentRoute != Screen.Home.route &&
+                    currentRoute != Screen.CreateListing.route &&
+                    currentRoute?.startsWith("listing/") != true
+                ) {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
@@ -130,7 +137,7 @@ fun AppNavGraph(
                     navController.navigate(Screen.ListingDetail.createRoute(listingId))
                 },
                 onNavigateToSell = {
-                    // Placeholder for Tab 3 (Sell) in future specs
+                    navController.navigate(Screen.CreateListing.route)
                 }
             )
         }
@@ -149,6 +156,23 @@ fun AppNavGraph(
                     style = MaterialTheme.typography.titleLarge
                 )
             }
+        }
+
+        composable(Screen.CreateListing.route) {
+            CreateListingScreen(
+                viewModel = createListingViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onPublishSuccess = {
+                    if (navController.currentDestination?.route == Screen.CreateListing.route) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
         }
     }
 }
