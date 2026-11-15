@@ -91,6 +91,11 @@ private class FakeHomeListingRepository : ListingRepository {
         onWriteStarted?.invoke()
         return Result.success("fake-id")
     }
+
+    override suspend fun deleteListing(listingId: String): Result<Unit> {
+        listingsFlow.update { list -> list.filter { it.id != listingId } }
+        return Result.success(Unit)
+    }
 }
 
 private class FakeHomeAuthRepository(

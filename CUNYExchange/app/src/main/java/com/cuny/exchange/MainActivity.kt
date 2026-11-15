@@ -73,6 +73,8 @@ class MainActivity : ComponentActivity() {
                         authViewModel = authViewModel,
                         homeViewModel = homeViewModel,
                         createListingViewModel = createListingViewModel,
+                        listingRepository = listingRepository,
+                        authRepository = authRepository,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

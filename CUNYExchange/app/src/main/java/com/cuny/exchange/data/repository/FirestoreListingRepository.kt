@@ -21,7 +21,8 @@ import kotlinx.coroutines.tasks.await
 class FirestoreListingRepository(
     private val context: Context? = null,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val storageRepository: StorageRepository = FirebaseStorageRepository(context)
 ) : ListingRepository {
 
     private val prefs: SharedPreferences? by lazy {
@@ -147,6 +148,32 @@ class FirestoreListingRepository(
         firestore.collection("listings").document(listingId)
             .update("status", status)
             .await()
+        Unit
+    }
+
+    override suspend fun deleteListing(listingId: String): Result<Unit> = runCatching {
+        val currentUserId = auth.currentUser?.uid
+            ?: throw IllegalStateException("User not authenticated")
+
+        val docRef = firestore.collection("listings").document(listingId)
+        val doc = docRef.get().await()
+        val sellerId = doc.getString("sellerId")
+        if (sellerId != currentUserId) {
+            throw IllegalAccessException("Only the listing seller can delete this listing")
+        }
+
+        // 1. Transition to deletion-pending as required by deletion protocol
+        docRef.update("status", "deletion-pending").await()
+
+        // 2. Clean up photos if present and verify successful removal
+        @Suppress("UNCHECKED_CAST")
+        val photoUrls = doc.get("photoUrls") as? List<String> ?: emptyList()
+        if (photoUrls.isNotEmpty()) {
+            storageRepository.deletePhotos(photoUrls).getOrThrow()
+        }
+
+        // 3. Complete deletion of listing document
+        docRef.delete().await()
         Unit
     }
 

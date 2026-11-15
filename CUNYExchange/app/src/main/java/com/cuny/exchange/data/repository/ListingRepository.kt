@@ -15,4 +15,5 @@ interface ListingRepository {
         listing: Listing,
         onWriteStarted: (() -> Unit)? = null
     ): Result<String>
+    suspend fun deleteListing(listingId: String): Result<Unit>
 }
