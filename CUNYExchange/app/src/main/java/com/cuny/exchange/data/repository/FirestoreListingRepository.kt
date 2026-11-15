@@ -2,8 +2,10 @@ package com.cuny.exchange.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.cuny.exchange.data.model.Campus
 import com.cuny.exchange.data.model.Category
 import com.cuny.exchange.data.model.Listing
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -146,6 +148,44 @@ class FirestoreListingRepository(
             .update("status", status)
             .await()
         Unit
+    }
+
+    override suspend fun createListing(
+        listing: Listing,
+        onWriteStarted: (() -> Unit)?
+    ): Result<String> = runCatching {
+        val currentUserId = auth.currentUser?.uid
+            ?: throw IllegalStateException("User not authenticated")
+        val currentUserEmail = auth.currentUser?.email
+            ?: throw IllegalStateException("User has no verified email")
+
+        val docRef = firestore.collection("listings").document()
+        val listingId = docRef.id
+
+        val userDoc = firestore.collection("users").document(currentUserId).get().await()
+        val sellerName = userDoc.getString("displayName") ?: ""
+        val sellerMajor = userDoc.getString("major") ?: ""
+        val sellerRating = userDoc.getDouble("rating") ?: 5.0
+
+        val campusSafeZone = Campus.findByName(listing.campus)?.safeZone
+            ?: Campus.findById(listing.campus)?.safeZone
+            ?: "Library lobby (security desk)"
+
+        val fullListing = listing.copy(
+            id = listingId,
+            sellerId = currentUserId,
+            sellerEmail = currentUserEmail,
+            sellerName = sellerName,
+            sellerMajor = sellerMajor,
+            sellerRating = sellerRating,
+            safeZone = campusSafeZone,
+            status = "active",
+            createdAt = Timestamp.now()
+        )
+
+        onWriteStarted?.invoke()
+        docRef.set(fullListing).await()
+        listingId
     }
 
     companion object {
