@@ -335,6 +335,73 @@ class AuthUnitTest {
         assertEquals(14, authenticated.user.soldCount)
         assertEquals("Baruch College", authenticated.user.campus)
     }
+
+    @Test
+    fun restore_check_email_restores_valid_email_and_ignores_invalid() = runTest {
+        val fakeRepo = FakeAuthRepository()
+        val viewModel = AuthViewModel(fakeRepo)
+
+        // Invalid email should be rejected
+        viewModel.restoreCheckEmail("invalid@gmail.com")
+        assertEquals("", viewModel.checkEmailUiState.value.email)
+
+        // Valid CUNY email should be restored
+        viewModel.restoreCheckEmail("student@qc.cuny.edu")
+        assertEquals("student@qc.cuny.edu", viewModel.checkEmailUiState.value.email)
+    }
+
+    @Test
+    fun deep_link_ignored_when_authenticated_or_needs_onboarding() = runTest {
+        val fakeRepo = FakeAuthRepository()
+        val viewModel = AuthViewModel(fakeRepo)
+        val mockLink = "https://cuny-exchange-demo.firebaseapp.com/__/auth/links?apiKey=xyz"
+
+        // 1. When Authenticated: link is ignored, no prompt shown
+        fakeRepo.emitUser(
+            User(
+                id = "auth-user",
+                displayName = "Alex S.",
+                campus = "Queens College",
+                major = "Math",
+                isVerified = true
+            )
+        )
+        advanceUntilIdle()
+        assertTrue(viewModel.authState.value is AuthState.Authenticated)
+
+        viewModel.onDeepLinkReceived(mockLink, cachedEmail = null)
+        advanceUntilIdle()
+        assertFalse(viewModel.signInUiState.value.showCrossDeviceEmailPrompt)
+        assertEquals(0, fakeRepo.verifyLinkCallCount)
+
+        // 2. When NeedsOnboarding: link is also ignored
+        fakeRepo.emitUser(
+            User(
+                id = "new-user",
+                displayName = "",
+                campus = "",
+                major = "",
+                isVerified = false
+            )
+        )
+        advanceUntilIdle()
+        assertTrue(viewModel.authState.value is AuthState.NeedsOnboarding)
+
+        viewModel.onDeepLinkReceived(mockLink, cachedEmail = null)
+        advanceUntilIdle()
+        assertFalse(viewModel.signInUiState.value.showCrossDeviceEmailPrompt)
+        assertEquals(0, fakeRepo.verifyLinkCallCount)
+
+        // 3. When Unauthenticated: link without cached email triggers cross-device prompt
+        fakeRepo.emitUser(null)
+        advanceUntilIdle()
+        assertTrue(viewModel.authState.value is AuthState.Unauthenticated)
+
+        viewModel.onDeepLinkReceived(mockLink, cachedEmail = null)
+        advanceUntilIdle()
+        assertTrue(viewModel.signInUiState.value.showCrossDeviceEmailPrompt)
+        assertEquals(mockLink, viewModel.signInUiState.value.pendingDeepLink)
+    }
 }
 
 private class FakeAuthRepository : AuthRepository {

@@ -1,5 +1,5 @@
 package com.cuny.exchange
-
+ 
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,13 +14,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.rememberNavController
 import com.cuny.exchange.data.repository.FirebaseAuthRepository
+import com.cuny.exchange.data.repository.FirestoreListingRepository
 import com.cuny.exchange.ui.navigation.AppNavGraph
 import com.cuny.exchange.ui.screens.auth.AuthViewModel
+import com.cuny.exchange.ui.screens.home.HomeViewModel
+import com.cuny.exchange.ui.screens.home.HomeViewModelFactory
 import com.cuny.exchange.ui.theme.CUNYExchangeTheme
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var authRepository: FirebaseAuthRepository
+    private lateinit var listingRepository: FirestoreListingRepository
     private var lastHandledIntentUri: String? = null
 
     private val authViewModel: AuthViewModel by viewModels {
@@ -32,11 +36,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val homeViewModel: HomeViewModel by viewModels {
+        HomeViewModelFactory(listingRepository, authRepository)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         authRepository = FirebaseAuthRepository(applicationContext)
+        listingRepository = FirestoreListingRepository(applicationContext)
 
         val initialIntent = if (savedInstanceState == null) intent else null
 
@@ -52,6 +61,7 @@ class MainActivity : ComponentActivity() {
                     AppNavGraph(
                         navController = navController,
                         authViewModel = authViewModel,
+                        homeViewModel = homeViewModel,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
