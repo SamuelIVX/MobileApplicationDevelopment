@@ -105,8 +105,14 @@ class FirebaseAuthRepository(
         }
 
         try {
+            val projectId = try {
+                auth.app.options.projectId
+            } catch (e: Exception) {
+                null
+            } ?: "cuny-exchange-4f43e"
+
             val actionCodeSettings = actionCodeSettings {
-                url = "https://cuny-exchange-demo.firebaseapp.com/__/auth/links"
+                url = "https://$projectId.firebaseapp.com/__/auth/links"
                 handleCodeInApp = true
                 setAndroidPackageName(
                     context.packageName,
